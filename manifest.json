@@ -1,0 +1,21 @@
+{
+  "short_name": "ClubFutbol",
+  "name": "Gestión de Club & Fútbol",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/53/53283.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/53/53283.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0e1117",
+  "theme_color": "#0e1117",
+  "display": "standalone",
+  "orientation": "portrait"
+}
