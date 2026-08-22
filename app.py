@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import hashlib
@@ -40,11 +39,16 @@ if "socios_db" not in st.session_state:
 if "pagos_db" not in st.session_state:
     st.session_state.pagos_db = []
 
-# --- CONTROL DE ACCESO ---
-USERS = {"admin": hashlib.sha256("admin123".encode()).hexdigest()}
+# --- CONTROL DE ACCESO Y USUARIOS ---
+# Contraseñas cifradas en SHA-256
+USERS = {
+    "admin": hashlib.sha256("Admin2026!Club#".encode()).hexdigest(),
+    "cobranzas": hashlib.sha256("Cobras2026!".encode()).hexdigest()
+}
 
 if "auth" not in st.session_state:
     st.session_state.auth = False
+    st.session_state.current_user = ""
 
 if not st.session_state.auth:
     st.title("🔒 Control de Acceso - Club")
@@ -53,22 +57,25 @@ if not st.session_state.auth:
     if st.button("Ingresar"):
         if usr in USERS and USERS[usr] == hashlib.sha256(pwd.encode()).hexdigest():
             st.session_state.auth = True
+            st.session_state.current_user = usr
             st.rerun()
         else:
             st.error("Credenciales incorrectas")
     st.stop()
 
 # --- MENÚ LATERAL ---
-st.sidebar.title("📌 Menú Principal")
+st.sidebar.title(f"👤 Usuario: {st.session_state.current_user}")
 opcion = st.sidebar.radio("Ir a:", [
     "📊 Inicio & Categorías", 
     "➕ Registrar Socio / Grupo", 
     "🔍 Padrón & Listas", 
-    "💳 Cobrar Cuota"
+    "💳 Cobrar Cuota",
+    "📑 Historial de Comprobantes"
 ])
 
 if st.sidebar.button("Cerrar Sesión"):
     st.session_state.auth = False
+    st.session_state.current_user = ""
     st.rerun()
 
 # ------------------------------------------------------------------------------
@@ -247,7 +254,6 @@ elif opcion == "💳 Cobrar Cuota":
             st.dataframe(integrantes[["nombre", "dni", "categoria_futbol", "apto_medico"]], hide_index=True)
             ids_a_cobrar = integrantes["id"].tolist()
             
-            # Detalle con categoría para el comprobante
             nombres_comprobante = ", ".join([f"{r['nombre']} ({r['categoria_futbol']})" for _, r in integrantes.iterrows()])
             monto_defecto = 12000.0
         else:
@@ -263,8 +269,17 @@ elif opcion == "💳 Cobrar Cuota":
         
         medio = st.selectbox("Medio de Pago", ["Efectivo", "Transferencia", "Mercado Pago"])
         
-        if st.button("Confirmar Pago y Generar Comprobante"):
+        if st.button("Confirmar Pago y Guardar Comprobante"):
+            receipt_id = f"REC-{len(st.session_state.pagos_db) + 1001}"
+            fecha_ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            if is_grupo:
+                msg_txt = f"Hola! Confirmamos el pago del *Grupo {nom_grupo}* [{nombres_comprobante}] correspondiente a la cuota de *{mes_cobro} {anio_cobro}* por un total de *${monto:,.0f}*. Comprobante #{receipt_id}. ¡Muchas gracias!"
+            else:
+                msg_txt = f"Hola {socio_data['nombre']}! Confirmamos tu pago de la cuota de *{mes_cobro} {anio_cobro}* ({socio_data['categoria_futbol']}) por un total de *${monto:,.0f}*. Comprobante #{receipt_id}. ¡Muchas gracias!"
+
             nuevo_pago = {
+                "receipt_id": receipt_id,
                 "ids_asociados": ids_a_cobrar,
                 "pagador": socio_data["nombre"],
                 "detalle": nombres_comprobante,
@@ -272,15 +287,48 @@ elif opcion == "💳 Cobrar Cuota":
                 "anio": anio_cobro,
                 "monto": monto,
                 "medio": medio,
-                "fecha": datetime.now().strftime("%Y-%m-%d %H:%M")
+                "fecha": fecha_ahora,
+                "usuario_cobro": st.session_state.current_user,
+                "telefono": socio_data["telefono"],
+                "mensaje_wa": msg_txt
             }
             st.session_state.pagos_db.append(nuevo_pago)
-            st.success("¡Pago cargado exitosamente!")
+            st.success(f"¡Comprobante #{receipt_id} guardado con éxito en el archivo local!")
             
-            if is_grupo:
-                txt = f"Hola! Confirmamos el pago del *Grupo {nom_grupo}* [{nombres_comprobante}] correspondiente a la cuota de *{mes_cobro} {anio_cobro}* por un total de *${monto:,.0f}*. ¡Muchas gracias!"
-            else:
-                txt = f"Hola {socio_data['nombre']}! Confirmamos tu pago de la cuota de *{mes_cobro} {anio_cobro}* ({socio_data['categoria_futbol']}) por un total de *${monto:,.0f}*. ¡Muchas gracias!"
-                
-            wa_url = f"https://wa.me/{socio_data['telefono']}?text={urllib.parse.quote(txt)}"
+            wa_url = f"https://wa.me/{socio_data['telefono']}?text={urllib.parse.quote(msg_txt)}"
             st.markdown(f"[📲 **Enviar Comprobante Unificado por WhatsApp**]({wa_url})")
+
+# ------------------------------------------------------------------------------
+# 5. HISTORIAL / ARCHIVO LOCAL DE COMPROBANTES
+# ------------------------------------------------------------------------------
+elif opcion == "📑 Historial de Comprobantes":
+    st.header("📑 Archivo Local de Comprobantes Guardados")
+    
+    if len(st.session_state.pagos_db) == 0:
+        st.warning("No hay comprobantes cargados en el sistema aún.")
+    else:
+        df_pagos = pd.DataFrame(st.session_state.pagos_db)
+        
+        st.subheader("Búsqueda y Registros Guardados")
+        st.dataframe(
+            df_pagos[["receipt_id", "fecha", "pagador", "detalle", "mes", "anio", "monto", "medio", "usuario_cobro"]],
+            use_container_width=True, hide_index=True
+        )
+        
+        st.markdown("---")
+        st.subheader("🔍 Consultar y Reimprimir Comprobante")
+        
+        receipt_sel = st.selectbox("Seleccionar Comprobante por N°", df_pagos["receipt_id"].tolist())
+        pago_info = df_pagos[df_pagos["receipt_id"] == receipt_sel].iloc[0]
+        
+        st.markdown(f"""
+        > **N° Comprobante:** {pago_info['receipt_id']}  
+        > **Fecha/Hora:** {pago_info['fecha']}  
+        > **Cobrado por:** {pago_info['usuario_cobro']}  
+        > **Detalle Chicos/Socios:** {pago_info['detalle']}  
+        > **Período:** {pago_info['mes']} {pago_info['anio']}  
+        > **Monto:** ${pago_info['monto']:,.2f} ({pago_info['medio']})  
+        """)
+        
+        wa_url_reprint = f"https://wa.me/{pago_info['telefono']}?text={urllib.parse.quote(pago_info['mensaje_wa'])}"
+        st.markdown(f"[📲 **Reenviar Comprobante por WhatsApp**]({wa_url_reprint})")
