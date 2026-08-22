@@ -7,6 +7,18 @@ from datetime import datetime
 # Configuración Responsive (Celular / PC)
 st.set_page_config(page_title="Gestión de Club & Fútbol", page_icon="⚽", layout="wide")
 
+import streamlit.components.v1 as components
+
+# Inyección del Manifiesto PWA para instalación en Android/iOS
+pwa_html = """
+<link rel="manifest" href="https://raw.githubusercontent.com/Oliva92/club-app/main/manifest.json">
+<meta name="theme-color" content="#0e1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Club Fútbol">
+"""
+components.html(pwa_html, height=0)
+
 MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 MES_ACTUAL = MESES[datetime.now().month - 1]
 ANIO_ACTUAL = datetime.now().year
@@ -329,6 +341,9 @@ elif opcion == "📑 Historial de Comprobantes":
         > **Período:** {pago_info['mes']} {pago_info['anio']}  
         > **Monto:** ${pago_info['monto']:,.2f} ({pago_info['medio']})  
         """)
+        
+        wa_url_reprint = f"https://wa.me/{pago_info['telefono']}?text={urllib.parse.quote(pago_info['mensaje_wa'])}"
+        st.markdown(f"[📲 **Reenviar Comprobante por WhatsApp**]({wa_url_reprint})")
         
         wa_url_reprint = f"https://wa.me/{pago_info['telefono']}?text={urllib.parse.quote(pago_info['mensaje_wa'])}"
         st.markdown(f"[📲 **Reenviar Comprobante por WhatsApp**]({wa_url_reprint})")
