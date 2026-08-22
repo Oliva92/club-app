@@ -215,7 +215,7 @@ socios_data = [
         {"id": 152, "tipo_registro": "Individual", "grupo_familiar": "N/A", "nombre": "Perla", "dni": "", "direccion": "", "categoria_futbol": "Sub-21", "tel_madre": "", "tel_padre": "", "apto_medico": "Pendiente", "alergias": "Ninguna", "estado": "Activo"},
         {"id": 153, "tipo_registro": "Individual", "grupo_familiar": "N/A", "nombre": "Brisa", "dni": "", "direccion": "", "categoria_futbol": "Sub-21", "tel_madre": "", "tel_padre": "", "apto_medico": "Pendiente", "alergias": "Ninguna", "estado": "Activo"},
         {"id": 154, "tipo_registro": "Individual", "grupo_familiar": "N/A", "nombre": "Camila", "dni": "", "direccion": "", "categoria_futbol": "Sub-21", "tel_madre": "", "tel_padre": "", "apto_medico": "Pendiente", "alergias": "Ninguna", "estado": "Activo"}
-]
+])
 
 df = pd.DataFrame(socios_data)
 
