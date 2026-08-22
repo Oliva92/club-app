@@ -7,18 +7,6 @@ from datetime import datetime
 # Configuración Responsive (Celular / PC)
 st.set_page_config(page_title="Gestión de Club & Fútbol", page_icon="⚽", layout="wide")
 
-import streamlit.components.v1 as components
-
-# Inyección del Manifiesto PWA para instalación en Android/iOS
-pwa_html = """
-<link rel="manifest" href="https://raw.githubusercontent.com/Oliva92/club-app/main/manifest.json">
-<meta name="theme-color" content="#0e1117">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Club Fútbol">
-"""
-components.html(pwa_html, height=0)
-
 MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 MES_ACTUAL = MESES[datetime.now().month - 1]
 ANIO_ACTUAL = datetime.now().year
@@ -30,21 +18,21 @@ if "socios_db" not in st.session_state:
     st.session_state.socios_db = pd.DataFrame([
         {
             "id": 1, "tipo_registro": "Individual", "grupo_familiar": "N/A", "nombre": "Juan Pérez", 
-            "dni": "50123456", "categoria_futbol": "9na", "telefono": "5491198765432", 
-            "apto_medico": "Aprobado", "venc_apto": "2026-12-31", "alergias": "Ninguna", 
-            "contacto_emergencia": "1188888888", "estado": "Activo"
+            "dni": "50123456", "direccion": "Av. San Martín 123", "categoria_futbol": "9na", 
+            "tel_madre": "5491198765432", "tel_padre": "5491187654321", 
+            "apto_medico": "Aprobado", "alergias": "Ninguna", "estado": "Activo"
         },
         {
             "id": 2, "tipo_registro": "Grupo Familiar", "grupo_familiar": "Familia López", "nombre": "Mateo López", 
-            "dni": "48111222", "categoria_futbol": "8va", "telefono": "5491112345678", 
-            "apto_medico": "Aprobado", "venc_apto": "2026-10-15", "alergias": "Ninguna", 
-            "contacto_emergencia": "1122223333", "estado": "Activo"
+            "dni": "48111222", "direccion": "Calle Mitre 456", "categoria_futbol": "8va", 
+            "tel_madre": "5491112345678", "tel_padre": "5491122334455", 
+            "apto_medico": "Aprobado", "alergias": "Ninguna", "estado": "Activo"
         },
         {
             "id": 3, "tipo_registro": "Grupo Familiar", "grupo_familiar": "Familia López", "nombre": "Thiago López", 
-            "dni": "52333444", "categoria_futbol": "6ta", "telefono": "5491112345678", 
-            "apto_medico": "Pendiente", "venc_apto": "2026-05-01", "alergias": "Asma", 
-            "contacto_emergencia": "1122223333", "estado": "Activo"
+            "dni": "52333444", "direccion": "Calle Mitre 456", "categoria_futbol": "6ta", 
+            "tel_madre": "5491112345678", "tel_padre": "5491122334455", 
+            "apto_medico": "Pendiente", "alergias": "Asma", "estado": "Activo"
         }
     ])
 
@@ -52,7 +40,6 @@ if "pagos_db" not in st.session_state:
     st.session_state.pagos_db = []
 
 # --- CONTROL DE ACCESO Y USUARIOS ---
-# Contraseñas cifradas en SHA-256
 USERS = {
     "admin": hashlib.sha256("Admin2026!Club#".encode()).hexdigest(),
     "cobranzas": hashlib.sha256("Cobras2026!".encode()).hexdigest()
@@ -133,21 +120,22 @@ elif opcion == "➕ Registrar Socio / Grupo":
     
     if tipo_reg == "Socio / Jugador Individual":
         with st.form("form_alta_individual"):
-            st.subheader("Datos del Jugador / Socio")
+            st.subheader("Datos Personales")
             c1, c2 = st.columns(2)
             nombre = c1.text_input("Nombre y Apellido Completo")
             dni = c2.text_input("DNI / Cédula")
             
             c3, c4 = st.columns(2)
-            categoria = c3.selectbox("Categoría de Fútbol", CATEGORIAS_FUTBOL)
-            tel = c4.text_input("Teléfono WhatsApp (ej: 5491112345678)")
+            direccion = c3.text_input("Dirección / Domicilio")
+            categoria = c4.selectbox("Categoría de Fútbol", CATEGORIAS_FUTBOL)
             
-            st.subheader("Ficha Médica & Emergencias")
-            c5, c6 = st.columns(2)
-            apto = c5.selectbox("Apto Médico", ["Aprobado", "Pendiente", "Rechazado"])
-            venc_apto = c6.date_input("Vencimiento del Apto Médico")
+            st.subheader("Teléfonos de Contacto")
+            t1, t2 = st.columns(2)
+            tel_madre = t1.text_input("Teléfono Madre / WhatsApp (ej: 5491112345678)")
+            tel_padre = t2.text_input("Teléfono Padre / WhatsApp (ej: 5491112345678)")
             
-            contacto_emerg = st.text_input("Teléfono de Emergencia / Madre / Padre")
+            st.subheader("Ficha Médica")
+            apto = st.selectbox("Apto Médico", ["Aprobado", "Pendiente", "Rechazado"])
             alergias = st.text_area("Observaciones Médicas / Alergias", value="Ninguna")
             
             guardar = st.form_submit_button("Guardar Jugador")
@@ -158,9 +146,10 @@ elif opcion == "➕ Registrar Socio / Grupo":
                         "id": len(st.session_state.socios_db) + 1,
                         "tipo_registro": "Individual",
                         "grupo_familiar": "N/A",
-                        "nombre": nombre, "dni": dni, "categoria_futbol": categoria,
-                        "telefono": tel, "apto_medico": apto, "venc_apto": str(venc_apto),
-                        "alergias": alergias, "contacto_emergencia": contacto_emerg,
+                        "nombre": nombre, "dni": dni, "direccion": direccion,
+                        "categoria_futbol": categoria,
+                        "tel_madre": tel_madre, "tel_padre": tel_padre,
+                        "apto_medico": apto, "alergias": alergias,
                         "estado": "Activo"
                     }
                     st.session_state.socios_db = pd.concat([st.session_state.socios_db, pd.DataFrame([nuevo])], ignore_index=True)
@@ -171,8 +160,12 @@ elif opcion == "➕ Registrar Socio / Grupo":
     else:
         st.subheader("👨‍👩‍👧‍👦 Carga de Grupo Familiar")
         nombre_grupo = st.text_input("Nombre del Grupo Familiar (ej: Familia López)").strip()
-        tel_familiar = st.text_input("Teléfono Principal / WhatsApp del Grupo")
-        contacto_emerg_fam = st.text_input("Teléfono de Emergencia / Madre / Padre")
+        direccion_fam = st.text_input("Dirección del Grupo Familiar")
+        
+        c_t1, c_t2 = st.columns(2)
+        tel_madre_fam = c_t1.text_input("Teléfono Madre / WhatsApp del Grupo")
+        tel_padre_fam = c_t2.text_input("Teléfono Padre / WhatsApp del Grupo")
+        
         cant_chicos = st.number_input("¿Cuántos niños/integrantes forman este Grupo Familiar?", min_value=1, max_value=6, value=2, step=1)
         
         st.markdown("---")
@@ -189,12 +182,11 @@ elif opcion == "➕ Registrar Socio / Grupo":
                 
                 c4, c5 = st.columns(2)
                 apto_i = c4.selectbox(f"Apto Médico #{i+1}", ["Aprobado", "Pendiente", "Rechazado"], key=f"apto_{i}")
-                venc_i = c5.date_input(f"Vencimiento Apto #{i+1}", key=f"venc_{i}")
-                alergia_i = st.text_input(f"Alergias / Med. Especial #{i+1}", value="Ninguna", key=f"alergia_{i}")
+                alergia_i = c5.text_input(f"Alergias / Med. Especial #{i+1}", value="Ninguna", key=f"alergia_{i}")
                 
                 integrantes_datos.append({
                     "nombre": nom_i, "dni": dni_i, "categoria": cat_i,
-                    "apto": apto_i, "venc": str(venc_i), "alergia": alergia_i
+                    "apto": apto_i, "alergia": alergia_i
                 })
                 st.markdown("---")
                 
@@ -212,12 +204,12 @@ elif opcion == "➕ Registrar Socio / Grupo":
                             "grupo_familiar": nombre_grupo,
                             "nombre": item["nombre"],
                             "dni": item["dni"],
+                            "direccion": direccion_fam,
                             "categoria_futbol": item["categoria"],
-                            "telefono": tel_familiar,
+                            "tel_madre": tel_madre_fam,
+                            "tel_padre": tel_padre_fam,
                             "apto_medico": item["apto"],
-                            "venc_apto": item["venc"],
                             "alergias": item["alergia"],
-                            "contacto_emergencia": contacto_emerg_fam,
                             "estado": "Activo"
                         })
                     
@@ -240,7 +232,7 @@ elif opcion == "🔍 Padrón & Listas":
         
     st.subheader(f"Listado ({len(df_ver)} registros)")
     st.dataframe(
-        df_ver[["nombre", "dni", "categoria_futbol", "tipo_registro", "grupo_familiar", "apto_medico", "telefono", "contacto_emergencia"]],
+        df_ver[["nombre", "dni", "direccion", "categoria_futbol", "tipo_registro", "grupo_familiar", "apto_medico", "tel_madre", "tel_padre"]],
         use_container_width=True, hide_index=True
     )
 
@@ -281,6 +273,20 @@ elif opcion == "💳 Cobrar Cuota":
         
         medio = st.selectbox("Medio de Pago", ["Efectivo", "Transferencia", "Mercado Pago"])
         
+        st.subheader("📲 Envío de Comprobante")
+        destino_wa = st.radio("¿A qué teléfono enviar el recibo?", [
+            f"Madre ({socio_data['tel_madre']})", 
+            f"Padre ({socio_data['tel_padre']})",
+            "Otro número"
+        ])
+        
+        if "Madre" in destino_wa:
+            tel_envio = socio_data['tel_madre']
+        elif "Padre" in destino_wa:
+            tel_envio = socio_data['tel_padre']
+        else:
+            tel_envio = st.text_input("Ingresar otro teléfono con código de área (ej: 5491112345678)")
+        
         if st.button("Confirmar Pago y Guardar Comprobante"):
             receipt_id = f"REC-{len(st.session_state.pagos_db) + 1001}"
             fecha_ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -301,14 +307,15 @@ elif opcion == "💳 Cobrar Cuota":
                 "medio": medio,
                 "fecha": fecha_ahora,
                 "usuario_cobro": st.session_state.current_user,
-                "telefono": socio_data["telefono"],
+                "telefono": tel_envio,
                 "mensaje_wa": msg_txt
             }
             st.session_state.pagos_db.append(nuevo_pago)
             st.success(f"¡Comprobante #{receipt_id} guardado con éxito en el archivo local!")
             
-            wa_url = f"https://wa.me/{socio_data['telefono']}?text={urllib.parse.quote(msg_txt)}"
-            st.markdown(f"[📲 **Enviar Comprobante Unificado por WhatsApp**]({wa_url})")
+            if tel_envio:
+                wa_url = f"https://wa.me/{tel_envio}?text={urllib.parse.quote(msg_txt)}"
+                st.markdown(f"[📲 **Enviar Comprobante Unificado por WhatsApp**]({wa_url})")
 
 # ------------------------------------------------------------------------------
 # 5. HISTORIAL / ARCHIVO LOCAL DE COMPROBANTES
@@ -340,10 +347,9 @@ elif opcion == "📑 Historial de Comprobantes":
         > **Detalle Chicos/Socios:** {pago_info['detalle']}  
         > **Período:** {pago_info['mes']} {pago_info['anio']}  
         > **Monto:** ${pago_info['monto']:,.2f} ({pago_info['medio']})  
+        > **Teléfono Notificado:** {pago_info['telefono']}  
         """)
         
-        wa_url_reprint = f"https://wa.me/{pago_info['telefono']}?text={urllib.parse.quote(pago_info['mensaje_wa'])}"
-        st.markdown(f"[📲 **Reenviar Comprobante por WhatsApp**]({wa_url_reprint})")
-        
-        wa_url_reprint = f"https://wa.me/{pago_info['telefono']}?text={urllib.parse.quote(pago_info['mensaje_wa'])}"
-        st.markdown(f"[📲 **Reenviar Comprobante por WhatsApp**]({wa_url_reprint})")
+        if pago_info['telefono']:
+            wa_url_reprint = f"https://wa.me/{pago_info['telefono']}?text={urllib.parse.quote(pago_info['mensaje_wa'])}"
+            st.markdown(f"[📲 **Reenviar Comprobante por WhatsApp**]({wa_url_reprint})")
