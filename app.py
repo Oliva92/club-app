@@ -1,18 +1,41 @@
 import streamlit as st
 import pandas as pd
+import hashlib
+import urllib.parse
+from datetime import datetime
 
-# Configuración de la página
-st.set_page_config(
-    page_title="Gestión de Socios",
-    page_icon="⚽",
-    layout="wide"
+# Configuración Responsive (Celular / PC)
+st.set_page_config(page_title="Gestión de Club & Fútbol", page_icon="⚽", layout="wide")
+
+# --- ESCUDO DE FONDO (MARCA DE AGUA CSS) ---
+ESCUDO_URL = "https://i.ibb.co/vzY3J1S/escudo-val.jpg"  # Escudo procesado
+
+st.markdown(
+    f"""
+    <style>
+    .stApp {{
+        background-image: linear-gradient(rgba(14, 17, 23, 0.88), rgba(14, 17, 23, 0.88)), url("{ESCUDO_URL}");
+        background-attachment: fixed;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }}
+    </style>
+    """,
+    unsafe_allow_html=True
 )
+
+MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+MES_ACTUAL = MESES[datetime.now().month - 1]
+ANIO_ACTUAL = datetime.now().year
+
+CATEGORIAS_FUTBOL = ["Ninguna / Adulto", "9na", "8va", "7ma", "6ta", "5ta", "Sub-12", "Sub-14", "Sub-21"]
 
 # --- BASE DE DATOS EN MEMORIA / SESIÓN ---
 if "socios_db" not in st.session_state:
-    socios_data = [
-        # --- 6ta Categoría ---
-        {"id": 1, "tipo_registro": "Individual", "grupo_familiar": "N/A", "nombre": "Valentin Brinso", "dni": "", "direccion": "", "categoria_futbol": "6ta", "tel_madre": "2226542073", "tel_padre": "2271432530", "apto_medico": "Aprobado", "alergias": "Ninguna", "estado": "Activo"},
+    st.session_state.socios_db = pd.DataFrame([
+        {
+            "id": 1, "tipo_registro": "Individual", "grupo_familiar": "N/A", "nombre": "Valentin Brinso", "dni": "", "direccion": "", "categoria_futbol": "6ta", "tel_madre": "2226542073", "tel_padre": "2271432530", "apto_medico": "Aprobado", "alergias": "Ninguna", "estado": "Activo"},
         {"id": 2, "tipo_registro": "Individual", "grupo_familiar": "N/A", "nombre": "Joaquin Campos", "dni": "", "direccion": "", "categoria_futbol": "6ta", "tel_madre": "2271436860", "tel_padre": "1124055037", "apto_medico": "Aprobado", "alergias": "Ninguna", "estado": "Activo"},
         {"id": 3, "tipo_registro": "Individual", "grupo_familiar": "N/A", "nombre": "Dylan Cinalli", "dni": "", "direccion": "", "categoria_futbol": "6ta", "tel_madre": "2226511049", "tel_padre": "2226547080", "apto_medico": "Aprobado", "alergias": "Ninguna", "estado": "Activo"},
         {"id": 4, "tipo_registro": "Individual", "grupo_familiar": "N/A", "nombre": "Alvaro Diaz", "dni": "", "direccion": "", "categoria_futbol": "6ta", "tel_madre": "1153313470", "tel_padre": "2226459518", "apto_medico": "Aprobado", "alergias": "Ninguna", "estado": "Activo"},
@@ -128,210 +151,382 @@ if "socios_db" not in st.session_state:
         {"id": 106, "tipo_registro": "Individual", "grupo_familiar": "N/A", "nombre": "Renzo Fernandez", "dni": "", "direccion": "", "categoria_futbol": "5ta", "tel_madre": "2271416417", "tel_padre": "2271411067", "apto_medico": "Aprobado", "alergias": "Ninguna", "estado": "Activo"},
         {"id": 107, "tipo_registro": "Individual", "grupo_familiar": "N/A", "nombre": "Fabricio Flores", "dni": "", "direccion": "", "categoria_futbol": "5ta", "tel_madre": "2226509390", "tel_padre": "2226445199", "apto_medico": "Aprobado", "alergias": "Ninguna", "estado": "Activo"},
         {"id": 108, "tipo_registro": "Individual", "grupo_familiar": "N/A", "nombre": "Bruno Gomez", "dni": "", "direccion": "", "categoria_futbol": "5ta", "tel_madre": "", "tel_padre": "", "apto_medico": "Pendiente", "alergias": "Ninguna", "estado": "Activo"}
-    ]
-    st.session_state.socios_db = pd.DataFrame(socios_data)
+    ])
 
-# --- NAVEGACIÓN ---
-st.sidebar.title("📌 Menú de Opciones")
-opcion = st.sidebar.radio("Selecciona una sección:", [
-    "📋 Lista de Socios",
+if "pagos_db" not in st.session_state:
+    st.session_state.pagos_db = []
+
+# --- CONTROL DE ACCESO Y USUARIOS ---
+USERS = {
+    "admin": hashlib.sha256("Admin2026!Club#".encode()).hexdigest(),
+    "cobranzas": hashlib.sha256("Cobras2026!".encode()).hexdigest()
+}
+
+if "auth" not in st.session_state:
+    st.session_state.auth = False
+    st.session_state.current_user = ""
+
+if not st.session_state.auth:
+    st.title("🔒 Control de Acceso - Club")
+    usr = st.text_input("Usuario")
+    pwd = st.text_input("Contraseña", type="password")
+    if st.button("Ingresar"):
+        if usr in USERS and USERS[usr] == hashlib.sha256(pwd.encode()).hexdigest():
+            st.session_state.auth = True
+            st.session_state.current_user = usr
+            st.rerun()
+        else:
+            st.error("Credenciales incorrectas")
+    st.stop()
+
+# --- MENÚ LATERAL ---
+st.sidebar.title(f"👤 Usuario: {st.session_state.current_user}")
+opcion = st.sidebar.radio("Ir a:", [
+    "📊 Inicio & Categorías", 
     "➕ Registrar Socio / Grupo",
-    "🩺 Apto Médico / Salud",
-    "✏️ Editar / Inactivar Socio"
+    "✏️ Editar / Dar de Baja Socio",
+    "🔍 Padrón & Listas", 
+    "💳 Cobrar Cuota",
+    "📑 Historial de Comprobantes"
 ])
 
-st.sidebar.markdown("---")
-st.sidebar.caption("Sistema de Gestión de Socios v1.0")
+if st.sidebar.button("Cerrar Sesión"):
+    st.session_state.auth = False
+    st.session_state.current_user = ""
+    st.rerun()
 
-# --- VISTA 1: LISTA DE SOCIOS ---
-if opcion == "📋 Lista de Socios":
-    st.title("📋 Lista General de Socios")
+# ------------------------------------------------------------------------------
+# 1. DASHBOARD & CONTROL POR CATEGORÍA
+# ------------------------------------------------------------------------------
+if opcion == "📊 Inicio & Categorías":
+    st.header(f"📊 Control General y Cuotas ({MES_ACTUAL} {ANIO_ACTUAL})")
     
+    df_activos = st.session_state.socios_db[st.session_state.socios_db["estado"] == "Activo"].copy()
+    
+    pagos_mes = [p for p in st.session_state.pagos_db if p["mes"] == MES_ACTUAL and p["anio"] == ANIO_ACTUAL]
+    ids_pagados = []
+    for pago in pagos_mes:
+        ids_pagados.extend(pago["ids_asociados"])
+        
+    df_activos["Estado Cuota"] = df_activos["id"].apply(
+        lambda x: f"✅ Al día ({MES_ACTUAL})" if x in ids_pagados else f"❌ Adeuda ({MES_ACTUAL})"
+    )
+    
+    total_recaudado = sum([p["monto"] for p in pagos_mes])
+    pagados_cnt = len(set(ids_pagados))
+    adeudados_cnt = len(df_activos) - pagados_cnt
+
     col1, col2, col3 = st.columns(3)
-    with col1:
-        filtro_cat = st.selectbox("Filtrar por Categoría:", ["Todas", "5ta", "6ta", "7ma", "8va", "9na", "Sin Categoría"])
-    with col2:
-        filtro_estado = st.selectbox("Filtrar por Estado:", ["Todos", "Activo", "Inactivo"])
-    with col3:
-        busqueda = st.text_input("Buscar por Nombre o DNI:")
-
-    df_filtrado = st.session_state.socios_db.copy()
-
-    if filtro_cat != "Todas":
-        df_filtrado = df_filtrado[df_filtrado["categoria_futbol"] == filtro_cat]
-    
-    if filtro_estado != "Todos":
-        df_filtrado = df_filtrado[df_filtrado["estado"] == filtro_estado]
-
-    if busqueda:
-        df_filtrado = df_filtrado[
-            df_filtrado["nombre"].str.contains(busqueda, case=False, na=False) |
-            df_filtrado["dni"].str.contains(busqueda, case=False, na=False)
-        ]
-
-    st.metric("Total Registros Visualizados", len(df_filtrado))
-    st.dataframe(df_filtrado, use_container_width=True)
-
-# --- VISTA 2: REGISTRAR SOCIO O GRUPO FAMILIAR ---
-elif opcion == "➕ Registrar Socio / Grupo":
-    st.title("➕ Alta de Socio o Grupo Familiar")
-
-    tipo = st.radio("Selecciona el tipo de registro:", ["Individual", "Grupo Familiar"])
-
-    with st.form("form_alta", clear_on_submit=True):
-        if tipo == "Individual":
-            st.subheader("Datos del Socio")
-            nombre = st.text_input("Nombre y Apellido *")
-            dni = st.text_input("DNI")
-            direccion = st.text_input("Dirección")
-            categoria = st.selectbox("Categoría de Fútbol", ["Sin Categoría", "5ta", "6ta", "7ma", "8va", "9na"])
-            tel_madre = st.text_input("Teléfono Madre")
-            tel_padre = st.text_input("Teléfono Padre")
-            apto = st.selectbox("Apto Médico", ["Aprobado", "Pendiente", "Vencido"])
-            alergias = st.text_input("Alergias o Condiciones Médicas", "Ninguna")
-
-            submitted = st.form_submit_button("Guardar Socio")
-
-            if submitted:
-                if not nombre:
-                    st.error("El nombre es un campo obligatorio.")
-                else:
-                    nuevo_id = st.session_state.socios_db["id"].max() + 1 if not st.session_state.socios_db.empty else 1
-                    nuevo_registro = {
-                        "id": nuevo_id,
-                        "tipo_registro": "Individual",
-                        "grupo_familiar": "N/A",
-                        "nombre": nombre,
-                        "dni": dni,
-                        "direccion": direccion,
-                        "categoria_futbol": categoria,
-                        "tel_madre": tel_madre,
-                        "tel_padre": tel_padre,
-                        "apto_medico": apto,
-                        "alergias": alergias,
-                        "estado": "Activo"
-                    }
-                    st.session_state.socios_db = pd.concat([st.session_state.socios_db, pd.DataFrame([nuevo_registro])], ignore_index=True)
-                    st.success(f"¡Socio {nombre} registrado exitosamente!")
-
-        else:
-            st.subheader("Datos del Grupo Familiar")
-            nombre_grupo = st.text_input("Nombre del Grupo Familiar (ej. 'Familia Perez') *")
-            num_integrantes = st.number_input("Cantidad de integrantes a registrar:", min_value=1, max_value=10, value=2)
-
-            integrantes = []
-            for i in range(num_integrantes):
-                st.markdown(f"--- \n**Integrante {i+1}**")
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    nom = st.text_input(f"Nombre Integrante {i+1} *", key=f"nom_{i}")
-                    dni_i = st.text_input(f"DNI Integrante {i+1}", key=f"dni_{i}")
-                    cat_i = st.selectbox(f"Categoría Integrante {i+1}", ["Sin Categoría", "5ta", "6ta", "7ma", "8va", "9na"], key=f"cat_{i}")
-                with col_b:
-                    tm = st.text_input(f"Tel Madre {i+1}", key=f"tm_{i}")
-                    tp = st.text_input(f"Tel Padre {i+1}", key=f"tp_{i}")
-                    apto_i = st.selectbox(f"Apto Médico {i+1}", ["Aprobado", "Pendiente", "Vencido"], key=f"apto_{i}")
-
-                integrantes.append({"nombre": nom, "dni": dni_i, "cat": cat_i, "tm": tm, "tp": tp, "apto": apto_i})
-
-            submitted_grupo = st.form_submit_button("Guardar Grupo Familiar")
-
-            if submitted_grupo:
-                if not nombre_grupo:
-                    st.error("Debes colocar un nombre al grupo familiar.")
-                else:
-                    nuevos = []
-                    ultimo_id = st.session_state.socios_db["id"].max() if not st.session_state.socios_db.empty else 0
-                    for item in integrantes:
-                        if item["nombre"]:
-                            ultimo_id += 1
-                            nuevos.append({
-                                "id": ultimo_id,
-                                "tipo_registro": "Grupo Familiar",
-                                "grupo_familiar": nombre_grupo,
-                                "nombre": item["nombre"],
-                                "dni": item["dni"],
-                                "direccion": "",
-                                "categoria_futbol": item["cat"],
-                                "tel_madre": item["tm"],
-                                "tel_padre": item["tp"],
-                                "apto_medico": item["apto"],
-                                "alergias": "Ninguna",
-                                "estado": "Activo"
-                            })
-                    if nuevos:
-                        st.session_state.socios_db = pd.concat([st.session_state.socios_db, pd.DataFrame(nuevos)], ignore_index=True)
-                        st.success(f"¡Grupo '{nombre_grupo}' registrado con éxito con {len(nuevos)} integrantes!")
-
-# --- VISTA 3: APTO MÉDICO Y SALUD ---
-elif opcion == "🩺 Apto Médico / Salud":
-    st.title("🩺 Control de Aptos Médicos y Salud")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        pendientes = len(st.session_state.socios_db[st.session_state.socios_db["apto_medico"] == "Pendiente"])
-        st.warning(f"Aptos Médicos Pendientes: {pendientes}")
-    with col2:
-        aprobados = len(st.session_state.socios_db[st.session_state.socios_db["apto_medico"] == "Aprobado"])
-        st.success(f"Aptos Médicos Aprobados: {aprobados}")
-
-    st.subheader("Socios con Apto Médico Pendiente")
-    df_pendientes = st.session_state.socios_db[st.session_state.socios_db["apto_medico"] == "Pendiente"]
-    st.dataframe(df_pendientes[["id", "nombre", "categoria_futbol", "tel_madre", "tel_padre", "apto_medico"]], use_container_width=True)
+    col1.metric("Recaudación Mes Actual", f"$ {total_recaudado:,}")
+    col2.metric("Chicos / Socios Al Día", pagados_cnt)
+    col3.metric("Cuotas Pendientes", adeudados_cnt)
 
     st.markdown("---")
-    st.subheader("Actualizar Apto Médico")
-    socio_sel = st.selectbox("Selecciona un socio para actualizar estado médico:", st.session_state.socios_db["nombre"].tolist())
+    st.subheader("⚽ Cantidad de Chicos Activos por Categoría")
+    
+    cat_counts = df_activos["categoria_futbol"].value_counts().reset_index()
+    cat_counts.columns = ["Categoría", "Cantidad de Chicos"]
+    st.dataframe(cat_counts, use_container_width=True, hide_index=True)
 
+# ------------------------------------------------------------------------------
+# 2. ALTA DE JUGADOR INDIVIDUAL O GRUPO FAMILIAR
+# ------------------------------------------------------------------------------
+elif opcion == "➕ Registrar Socio / Grupo":
+    st.header("Registro de Chicos / Socios y Ficha Médica")
+    
+    tipo_reg = st.radio("Tipo de Registro", ["Socio / Jugador Individual", "Grupo Familiar"], horizontal=True)
+    
+    if tipo_reg == "Socio / Jugador Individual":
+        with st.form("form_alta_individual"):
+            st.subheader("Datos Personales")
+            c1, c2 = st.columns(2)
+            nombre = c1.text_input("Nombre y Apellido Completo")
+            dni = c2.text_input("DNI / Cédula")
+            
+            c3, c4 = st.columns(2)
+            direccion = c3.text_input("Dirección / Domicilio")
+            categoria = c4.selectbox("Categoría de Fútbol", CATEGORIAS_FUTBOL)
+            
+            st.subheader("Teléfonos de Contacto")
+            t1, t2 = st.columns(2)
+            tel_madre = t1.text_input("Teléfono Madre / WhatsApp (ej: 5491112345678)")
+            tel_padre = t2.text_input("Teléfono Padre / WhatsApp (ej: 5491112345678)")
+            
+            st.subheader("Ficha Médica")
+            apto = st.selectbox("Apto Médico", ["Aprobado", "Pendiente", "Rechazado"])
+            alergias = st.text_area("Observaciones Médicas / Alergias", value="Ninguna")
+            
+            guardar = st.form_submit_button("Guardar Jugador")
+            
+            if guardar:
+                if nombre and dni:
+                    nuevo = {
+                        "id": len(st.session_state.socios_db) + 1,
+                        "tipo_registro": "Individual",
+                        "grupo_familiar": "N/A",
+                        "nombre": nombre, "dni": dni, "direccion": direccion,
+                        "categoria_futbol": categoria,
+                        "tel_madre": tel_madre, "tel_padre": tel_padre,
+                        "apto_medico": apto, "alergias": alergias,
+                        "estado": "Activo"
+                    }
+                    st.session_state.socios_db = pd.concat([st.session_state.socios_db, pd.DataFrame([nuevo])], ignore_index=True)
+                    st.success(f"¡{nombre} guardado correctamente en la categoría {categoria}!")
+                else:
+                    st.error("El Nombre y DNI son obligatorios.")
+
+    else:
+        st.subheader("👨‍👩‍👧‍👦 Carga de Grupo Familiar")
+        nombre_grupo = st.text_input("Nombre del Grupo Familiar (ej: Familia López)").strip()
+        direccion_fam = st.text_input("Dirección del Grupo Familiar")
+        
+        c_t1, c_t2 = st.columns(2)
+        tel_madre_fam = c_t1.text_input("Teléfono Madre / WhatsApp del Grupo")
+        tel_padre_fam = c_t2.text_input("Teléfono Padre / WhatsApp del Grupo")
+        
+        cant_chicos = st.number_input("¿Cuántos niños/integrantes forman este Grupo Familiar?", min_value=1, max_value=6, value=2, step=1)
+        
+        st.markdown("---")
+        
+        with st.form("form_alta_grupo"):
+            integrantes_datos = []
+            
+            for i in range(int(cant_chicos)):
+                st.markdown(f"#### 👦 Integrante #{i+1}")
+                c1, c2, c3 = st.columns(3)
+                nom_i = c1.text_input(f"Nombre Completo #{i+1}", key=f"nom_{i}")
+                dni_i = c2.text_input(f"DNI #{i+1}", key=f"dni_{i}")
+                cat_i = c3.selectbox(f"Categoría #{i+1}", CATEGORIAS_FUTBOL, key=f"cat_{i}")
+                
+                c4, c5 = st.columns(2)
+                apto_i = c4.selectbox(f"Apto Médico #{i+1}", ["Aprobado", "Pendiente", "Rechazado"], key=f"apto_{i}")
+                alergia_i = c5.text_input(f"Alergias / Med. Especial #{i+1}", value="Ninguna", key=f"alergia_{i}")
+                
+                integrantes_datos.append({
+                    "nombre": nom_i, "dni": dni_i, "categoria": cat_i,
+                    "apto": apto_i, "alergia": alergia_i
+                })
+                st.markdown("---")
+                
+            guardar_grupo = st.form_submit_button("Guardar Todo el Grupo Familiar")
+            
+            if guardar_grupo:
+                if nombre_grupo and all([item["nombre"] and item["dni"] for item in integrantes_datos]):
+                    nuevos_registros = []
+                    start_id = len(st.session_state.socios_db) + 1
+                    
+                    for idx, item in enumerate(integrantes_datos):
+                        nuevos_registros.append({
+                            "id": start_id + idx,
+                            "tipo_registro": "Grupo Familiar",
+                            "grupo_familiar": nombre_grupo,
+                            "nombre": item["nombre"],
+                            "dni": item["dni"],
+                            "direccion": direccion_fam,
+                            "categoria_futbol": item["categoria"],
+                            "tel_madre": tel_madre_fam,
+                            "tel_padre": tel_padre_fam,
+                            "apto_medico": item["apto"],
+                            "alergias": item["alergia"],
+                            "estado": "Activo"
+                        })
+                    
+                    st.session_state.socios_db = pd.concat([st.session_state.socios_db, pd.DataFrame(nuevos_registros)], ignore_index=True)
+                    st.success(f"¡{len(nuevos_registros)} integrantes registrados correctamente bajo el grupo '{nombre_grupo}'!")
+                else:
+                    st.error("Por favor completa el nombre del grupo y el Nombre/DNI de todos los integrantes.")
+
+# ------------------------------------------------------------------------------
+# 3. EDITAR / DAR DE BAJA SOCIO
+# ------------------------------------------------------------------------------
+elif opcion == "✏️ Editar / Dar de Baja Socio":
+    st.header("✏️ Modificar Ficha o Dar de Baja un Socio")
+    
+    lista_socios = st.session_state.socios_db["nombre"].tolist()
+    socio_sel = st.selectbox("Seleccionar Socio a Modificar:", options=[""] + lista_socios)
+    
     if socio_sel:
         idx = st.session_state.socios_db[st.session_state.socios_db["nombre"] == socio_sel].index[0]
-        estado_actual = st.session_state.socios_db.loc[idx, "apto_medico"]
-        alergia_actual = st.session_state.socios_db.loc[idx, "alergias"]
+        socio_data = st.session_state.socios_db.loc[idx]
+        
+        with st.form("form_editar_socio"):
+            st.subheader(f"Editando la Ficha de: {socio_data['nombre']}")
+            
+            c1, c2, c3 = st.columns(3)
+            nuevo_nombre = c1.text_input("Nombre y Apellido", value=socio_data["nombre"])
+            nuevo_dni = c2.text_input("DNI", value=socio_data["dni"])
+            nuevo_estado = c3.selectbox("Estado del Socio", ["Activo", "Inactivo / Dado de Baja"], index=0 if socio_data["estado"] == "Activo" else 1)
+            
+            c4, c5 = st.columns(2)
+            nueva_direccion = c4.text_input("Dirección", value=socio_data["direccion"])
+            nueva_cat = c5.selectbox("Categoría de Fútbol", CATEGORIAS_FUTBOL, index=CATEGORIAS_FUTBOL.index(socio_data["categoria_futbol"]))
+            
+            st.subheader("Contacto Parentales")
+            t1, t2 = st.columns(2)
+            nuevo_tel_madre = t1.text_input("Teléfono Madre", value=socio_data["tel_madre"])
+            nuevo_tel_padre = t2.text_input("Teléfono Padre", value=socio_data["tel_padre"])
+            
+            st.subheader("Ficha Médica")
+            apto_opts = ["Aprobado", "Pendiente", "Rechazado"]
+            nuevo_apto = st.selectbox("Apto Médico", apto_opts, index=apto_opts.index(socio_data["apto_medico"]))
+            nuevas_alergias = st.text_area("Alergias / Med. Especial", value=socio_data["alergias"])
+            
+            btn_actualizar = st.form_submit_button("Guardar Cambios")
+            
+            if btn_actualizar:
+                st.session_state.socios_db.loc[idx, "nombre"] = nuevo_nombre
+                st.session_state.socios_db.loc[idx, "dni"] = nuevo_dni
+                st.session_state.socios_db.loc[idx, "estado"] = nuevo_estado
+                st.session_state.socios_db.loc[idx, "direccion"] = nueva_direccion
+                st.session_state.socios_db.loc[idx, "categoria_futbol"] = nueva_cat
+                st.session_state.socios_db.loc[idx, "tel_madre"] = nuevo_tel_madre
+                st.session_state.socios_db.loc[idx, "tel_padre"] = nuevo_tel_padre
+                st.session_state.socios_db.loc[idx, "apto_medico"] = nuevo_apto
+                st.session_state.socios_db.loc[idx, "alergias"] = nuevas_alergias
+                
+                st.success(f"¡Ficha de {nuevo_nombre} actualizada con éxito!")
 
-        col_a, col_b = st.columns(2)
-        with col_a:
-            nuevo_apto = st.selectbox("Estado Apto Médico:", ["Aprobado", "Pendiente", "Vencido"], index=["Aprobado", "Pendiente", "Vencido"].index(estado_actual))
-        with col_b:
-            nueva_alergia = st.text_input("Alergias / Notas de Salud:", alergia_actual)
+# ------------------------------------------------------------------------------
+# 4. PADRÓN & LISTAS POR CATEGORÍA
+# ------------------------------------------------------------------------------
+elif opcion == "🔍 Padrón & Listas":
+    st.header("Padrón General y Filtro por Categoría")
+    
+    col_f1, col_f2 = st.columns(2)
+    filtro_cat = col_f1.selectbox("Filtrar por Categoría de Fútbol:", ["Todas"] + CATEGORIAS_FUTBOL)
+    filtro_est = col_f2.selectbox("Estado del Socio:", ["Solo Activos", "Dado de Baja / Inactivos", "Todos"])
+    
+    df_ver = st.session_state.socios_db.copy()
+    
+    if filtro_cat != "Todas":
+        df_ver = df_ver[df_ver["categoria_futbol"] == filtro_cat]
+        
+    if filtro_est == "Solo Activos":
+        df_ver = df_ver[df_ver["estado"] == "Activo"]
+    elif filtro_est == "Dado de Baja / Inactivos":
+        df_ver = df_ver[df_ver["estado"] != "Activo"]
+        
+    st.subheader(f"Listado ({len(df_ver)} registros)")
+    st.dataframe(
+        df_ver[["nombre", "dni", "estado", "direccion", "categoria_futbol", "tipo_registro", "grupo_familiar", "apto_medico", "tel_madre", "tel_padre"]],
+        use_container_width=True, hide_index=True
+    )
 
-        if st.button("Actualizar Registro Médico"):
-            st.session_state.socios_db.loc[idx, "apto_medico"] = nuevo_apto
-            st.session_state.socios_db.loc[idx, "alergias"] = nueva_alergia
-            st.success(f"¡Datos médicos de {socio_sel} actualizados correctamente!")
-            st.rerun()
+# ------------------------------------------------------------------------------
+# 5. COBRO DE CUOTAS POR NOMBRE Y GRUPO FAMILIAR
+# ------------------------------------------------------------------------------
+elif opcion == "💳 Cobrar Cuota":
+    st.header("Registrar Cobro de Cuota")
+    
+    df_activos = st.session_state.socios_db[st.session_state.socios_db["estado"] == "Activo"]
+    lista_nombres = df_activos["nombre"].tolist()
+    socio_buscado = st.selectbox("Buscar por Nombre y Apellido (Solo Activos)", options=[""] + lista_nombres)
+    
+    if socio_buscado:
+        socio_data = df_activos[df_activos["nombre"] == socio_buscado].iloc[0]
+        
+        is_grupo = socio_data["tipo_registro"] == "Grupo Familiar"
+        
+        if is_grupo:
+            nom_grupo = socio_data["grupo_familiar"]
+            integrantes = df_activos[df_activos["grupo_familiar"] == nom_grupo]
+            st.info(f"👨‍👩‍👧‍👦 **Cobro a Grupo Familiar:** {nom_grupo}")
+            st.write("**Integrantes e información del grupo:**")
+            st.dataframe(integrantes[["nombre", "dni", "categoria_futbol", "apto_medico"]], hide_index=True)
+            ids_a_cobrar = integrantes["id"].tolist()
+            
+            nombres_comprobante = ", ".join([f"{r['nombre']} ({r['categoria_futbol']})" for _, r in integrantes.iterrows()])
+            monto_defecto = 12000.0
+        else:
+            st.info(f"👤 **Cobro Individual:** {socio_data['nombre']} | **Categoría:** {socio_data['categoria_futbol']}")
+            ids_a_cobrar = [socio_data["id"]]
+            nombres_comprobante = f"{socio_data['nombre']} ({socio_data['categoria_futbol']})"
+            monto_defecto = 6000.0
 
-# --- VISTA 4: EDITAR O INACTIVAR ---
-elif opcion == "✏️ Editar / Inactivar Socio":
-    st.title("✏️ Edición y Gestión de Estado")
+        c1, c2, c3 = st.columns(3)
+        mes_cobro = c1.selectbox("Mes a cobrar", MESES, index=MESES.index(MES_ACTUAL))
+        anio_cobro = c2.number_input("Año", value=ANIO_ACTUAL)
+        monto = c3.number_input("Monto Total ($)", value=monto_defecto, step=500.0)
+        
+        medio = st.selectbox("Medio de Pago", ["Efectivo", "Transferencia", "Mercado Pago"])
+        
+        st.subheader("📲 Envío de Comprobante")
+        destino_wa = st.radio("¿A qué teléfono enviar el recibo?", [
+            f"Madre ({socio_data['tel_madre']})", 
+            f"Padre ({socio_data['tel_padre']})",
+            "Otro número"
+        ])
+        
+        if "Madre" in destino_wa:
+            tel_envio = socio_data['tel_madre']
+        elif "Padre" in destino_wa:
+            tel_envio = socio_data['tel_padre']
+        else:
+            tel_envio = st.text_input("Ingresar otro teléfono con código de área (ej: 5491112345678)")
+        
+        if st.button("Confirmar Pago y Guardar Comprobante"):
+            receipt_id = f"REC-{len(st.session_state.pagos_db) + 1001}"
+            fecha_ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            if is_grupo:
+                msg_txt = f"Hola! Confirmamos el pago del *Grupo {nom_grupo}* [{nombres_comprobante}] correspondiente a la cuota de *{mes_cobro} {anio_cobro}* por un total de *${monto:,.0f}*. Comprobante #{receipt_id}. ¡Muchas gracias!"
+            else:
+                msg_txt = f"Hola {socio_data['nombre']}! Confirmamos tu pago de la cuota de *{mes_cobro} {anio_cobro}* ({socio_data['categoria_futbol']}) por un total de *${monto:,.0f}*. Comprobante #{receipt_id}. ¡Muchas gracias!"
 
-    socio_editar = st.selectbox("Seleccionar socio:", st.session_state.socios_db["nombre"].tolist())
+            nuevo_pago = {
+                "receipt_id": receipt_id,
+                "ids_asociados": ids_a_cobrar,
+                "pagador": socio_data["nombre"],
+                "detalle": nombres_comprobante,
+                "mes": mes_cobro,
+                "anio": anio_cobro,
+                "monto": monto,
+                "medio": medio,
+                "fecha": fecha_ahora,
+                "usuario_cobro": st.session_state.current_user,
+                "telefono": tel_envio,
+                "mensaje_wa": msg_txt
+            }
+            st.session_state.pagos_db.append(nuevo_pago)
+            st.success(f"¡Comprobante #{receipt_id} guardado con éxito en el archivo local!")
+            
+            if tel_envio:
+                wa_url = f"https://wa.me/{tel_envio}?text={urllib.parse.quote(msg_txt)}"
+                st.markdown(f"[📲 **Enviar Comprobante Unificado por WhatsApp**]({wa_url})")
 
-    if socio_editar:
-        idx = st.session_state.socios_db[st.session_state.socios_db["nombre"] == socio_editar].index[0]
-        datos = st.session_state.socios_db.loc[idx]
-
-        with st.form("form_edicion"):
-            col1, col2 = st.columns(2)
-            with col1:
-                edit_nombre = st.text_input("Nombre completo", datos["nombre"])
-                edit_dni = st.text_input("DNI", datos["dni"])
-                edit_direccion = st.text_input("Dirección", datos["direccion"])
-                edit_cat = st.selectbox("Categoría Fútbol", ["Sin Categoría", "5ta", "6ta", "7ma", "8va", "9na"], index=["Sin Categoría", "5ta", "6ta", "7ma", "8va", "9na"].index(datos["categoria_futbol"]) if datos["categoria_futbol"] in ["Sin Categoría", "5ta", "6ta", "7ma", "8va", "9na"] else 0)
-            with col2:
-                edit_tm = st.text_input("Teléfono Madre", datos["tel_madre"])
-                edit_tp = st.text_input("Teléfono Padre", datos["tel_padre"])
-                edit_estado = st.selectbox("Estado del Socio", ["Activo", "Inactivo"], index=0 if datos["estado"] == "Activo" else 1)
-
-            btn_guardar = st.form_submit_button("Guardar Cambios")
-
-            if btn_guardar:
-                st.session_state.socios_db.loc[idx, "nombre"] = edit_nombre
-                st.session_state.socios_db.loc[idx, "dni"] = edit_dni
-                st.session_state.socios_db.loc[idx, "direccion"] = edit_direccion
-                st.session_state.socios_db.loc[idx, "categoria_futbol"] = edit_cat
-                st.session_state.socios_db.loc[idx, "tel_madre"] = edit_tm
-                st.session_state.socios_db.loc[idx, "tel_padre"] = edit_tp
-                st.session_state.socios_db.loc[idx, "estado"] = edit_estado
-                st.success("Socio actualizado con éxito.")
-                st.rerun()
-
+# ------------------------------------------------------------------------------
+# 6. HISTORIAL / ARCHIVO LOCAL DE COMPROBANTES
+# ------------------------------------------------------------------------------
+elif opcion == "📑 Historial de Comprobantes":
+    st.header("📑 Archivo Local de Comprobantes Guardados")
+    
+    if len(st.session_state.pagos_db) == 0:
+        st.warning("No hay comprobantes cargados en el sistema aún.")
+    else:
+        df_pagos = pd.DataFrame(st.session_state.pagos_db)
+        
+        st.subheader("Búsqueda y Registros Guardados")
+        st.dataframe(
+            df_pagos[["receipt_id", "fecha", "pagador", "detalle", "mes", "anio", "monto", "medio", "usuario_cobro"]],
+            use_container_width=True, hide_index=True
+        )
+        
+        st.markdown("---")
+        st.subheader("🔍 Consultar y Reimprimir Comprobante")
+        
+        receipt_sel = st.selectbox("Seleccionar Comprobante por N°", df_pagos["receipt_id"].tolist())
+        pago_info = df_pagos[df_pagos["receipt_id"] == receipt_sel].iloc[0]
+        
+        st.markdown(f"""
+        > **N° Comprobante:** {pago_info['receipt_id']}  
+        > **Fecha/Hora:** {pago_info['fecha']}  
+        > **Cobrado por:** {pago_info['usuario_cobro']}  
+        > **Detalle Chicos/Socios:** {pago_info['detalle']}  
+        > **Período:** {pago_info['mes']} {pago_info['anio']}  
+        > **Monto:** ${pago_info['monto']:,.2f} ({pago_info['medio']})  
+        > **Teléfono Notificado:** {pago_info['telefono']}  
+        """)
+        
+        if pago_info['telefono']:
+            wa_url_reprint = f"https://wa.me/{pago_info['telefono']}?text={urllib.parse.quote(pago_info['mensaje_wa'])}"
+            st.markdown(f"[📲 **Reenviar Comprobante por WhatsApp**]({wa_url_reprint})")
