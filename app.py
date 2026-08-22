@@ -7,16 +7,26 @@ from datetime import datetime
 # Configuración Responsive (Celular / PC)
 st.set_page_config(page_title="Gestión de Club & Fútbol", page_icon="⚽", layout="wide")
 
-# --- ESCUDO DE FONDO (MARCA DE AGUA CSS) ---
-ESCUDO_URL = "https://i.ibb.co/vzY3J1S/escudo-val.jpg"  # Escudo procesado
+# --- ESCUDO DE FONDO (MARCA DE AGUA) ---
+# SVG vectorizado del escudo 'VAL' para asegurar carga local inmediata sin bloqueos de servidor
+ESCUDO_SVG = """
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <path d="M 250 40 L 420 80 C 420 280 350 380 250 460 C 150 380 80 280 80 80 Z" fill="#E65100" stroke="#FFFFFF" stroke-width="12"/>
+  <path d="M 250 20 L 440 65 C 440 290 365 400 250 485 C 135 400 60 290 60 65 Z" fill="none" stroke="#4A0000" stroke-width="8"/>
+  <text x="250" y="270" font-family="Georgia, serif" font-size="120" font-weight="bold" fill="#000000" text-anchor="middle">VAL</text>
+</svg>
+"""
+
+import base64
+b64_svg = base64.b64encode(ESCUDO_SVG.encode('utf-8')).decode('utf-8')
 
 st.markdown(
     f"""
     <style>
     .stApp {{
-        background-image: linear-gradient(rgba(14, 17, 23, 0.88), rgba(14, 17, 23, 0.88)), url("{ESCUDO_URL}");
+        background-image: linear-gradient(rgba(14, 17, 23, 0.88), rgba(14, 17, 23, 0.88)), url("data:image/svg+xml;base64,{b64_svg}");
         background-attachment: fixed;
-        background-size: contain;
+        background-size: 450px;
         background-repeat: no-repeat;
         background-position: center;
     }}
