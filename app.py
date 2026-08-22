@@ -258,8 +258,8 @@ if "pagos_db" not in st.session_state:
 
 # --- CONTROL DE ACCESO Y USUARIOS ---
 USERS = {
-    "admin": hashlib.sha256("Admin2026!Club#".encode()).hexdigest(),
-    "cobranzas": hashlib.sha256("Cobras2026!".encode()).hexdigest()
+    "admin": hashlib.sha256("Club2026#".encode()).hexdigest(),
+    "cobranzas": hashlib.sha256("Cobro2026!".encode()).hexdigest()
 }
 
 if "auth" not in st.session_state:
