@@ -7,6 +7,24 @@ from datetime import datetime
 # Configuración Responsive (Celular / PC)
 st.set_page_config(page_title="Gestión de Club & Fútbol", page_icon="⚽", layout="wide")
 
+# --- ESCUDO DE FONDO (MARCA DE AGUA CSS) ---
+ESCUDO_URL = "https://i.ibb.co/vzY3J1S/escudo-val.jpg"  # Escudo procesado
+
+st.markdown(
+    f"""
+    <style>
+    .stApp {{
+        background-image: linear-gradient(rgba(14, 17, 23, 0.88), rgba(14, 17, 23, 0.88)), url("{ESCUDO_URL}");
+        background-attachment: fixed;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 MES_ACTUAL = MESES[datetime.now().month - 1]
 ANIO_ACTUAL = datetime.now().year
@@ -66,7 +84,8 @@ if not st.session_state.auth:
 st.sidebar.title(f"👤 Usuario: {st.session_state.current_user}")
 opcion = st.sidebar.radio("Ir a:", [
     "📊 Inicio & Categorías", 
-    "➕ Registrar Socio / Grupo", 
+    "➕ Registrar Socio / Grupo",
+    "✏️ Editar / Dar de Baja Socio",
     "🔍 Padrón & Listas", 
     "💳 Cobrar Cuota",
     "📑 Historial de Comprobantes"
@@ -83,20 +102,20 @@ if st.sidebar.button("Cerrar Sesión"):
 if opcion == "📊 Inicio & Categorías":
     st.header(f"📊 Control General y Cuotas ({MES_ACTUAL} {ANIO_ACTUAL})")
     
-    df_socios = st.session_state.socios_db.copy()
+    df_activos = st.session_state.socios_db[st.session_state.socios_db["estado"] == "Activo"].copy()
     
     pagos_mes = [p for p in st.session_state.pagos_db if p["mes"] == MES_ACTUAL and p["anio"] == ANIO_ACTUAL]
     ids_pagados = []
     for pago in pagos_mes:
         ids_pagados.extend(pago["ids_asociados"])
         
-    df_socios["Estado Cuota"] = df_socios["id"].apply(
+    df_activos["Estado Cuota"] = df_activos["id"].apply(
         lambda x: f"✅ Al día ({MES_ACTUAL})" if x in ids_pagados else f"❌ Adeuda ({MES_ACTUAL})"
     )
     
     total_recaudado = sum([p["monto"] for p in pagos_mes])
     pagados_cnt = len(set(ids_pagados))
-    adeudados_cnt = len(df_socios) - pagados_cnt
+    adeudados_cnt = len(df_activos) - pagados_cnt
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Recaudación Mes Actual", f"$ {total_recaudado:,}")
@@ -104,9 +123,9 @@ if opcion == "📊 Inicio & Categorías":
     col3.metric("Cuotas Pendientes", adeudados_cnt)
 
     st.markdown("---")
-    st.subheader("⚽ Cantidad de Chicos por Categoría de Fútbol")
+    st.subheader("⚽ Cantidad de Chicos Activos por Categoría")
     
-    cat_counts = df_socios["categoria_futbol"].value_counts().reset_index()
+    cat_counts = df_activos["categoria_futbol"].value_counts().reset_index()
     cat_counts.columns = ["Categoría", "Cantidad de Chicos"]
     st.dataframe(cat_counts, use_container_width=True, hide_index=True)
 
@@ -219,40 +238,99 @@ elif opcion == "➕ Registrar Socio / Grupo":
                     st.error("Por favor completa el nombre del grupo y el Nombre/DNI de todos los integrantes.")
 
 # ------------------------------------------------------------------------------
-# 3. PADRÓN & LISTAS POR CATEGORÍA
+# 3. EDITAR / DAR DE BAJA SOCIO
+# ------------------------------------------------------------------------------
+elif opcion == "✏️ Editar / Dar de Baja Socio":
+    st.header("✏️ Modificar Ficha o Dar de Baja un Socio")
+    
+    lista_socios = st.session_state.socios_db["nombre"].tolist()
+    socio_sel = st.selectbox("Seleccionar Socio a Modificar:", options=[""] + lista_socios)
+    
+    if socio_sel:
+        idx = st.session_state.socios_db[st.session_state.socios_db["nombre"] == socio_sel].index[0]
+        socio_data = st.session_state.socios_db.loc[idx]
+        
+        with st.form("form_editar_socio"):
+            st.subheader(f"Editando la Ficha de: {socio_data['nombre']}")
+            
+            c1, c2, c3 = st.columns(3)
+            nuevo_nombre = c1.text_input("Nombre y Apellido", value=socio_data["nombre"])
+            nuevo_dni = c2.text_input("DNI", value=socio_data["dni"])
+            nuevo_estado = c3.selectbox("Estado del Socio", ["Activo", "Inactivo / Dado de Baja"], index=0 if socio_data["estado"] == "Activo" else 1)
+            
+            c4, c5 = st.columns(2)
+            nueva_direccion = c4.text_input("Dirección", value=socio_data["direccion"])
+            nueva_cat = c5.selectbox("Categoría de Fútbol", CATEGORIAS_FUTBOL, index=CATEGORIAS_FUTBOL.index(socio_data["categoria_futbol"]))
+            
+            st.subheader("Contacto Parentales")
+            t1, t2 = st.columns(2)
+            nuevo_tel_madre = t1.text_input("Teléfono Madre", value=socio_data["tel_madre"])
+            nuevo_tel_padre = t2.text_input("Teléfono Padre", value=socio_data["tel_padre"])
+            
+            st.subheader("Ficha Médica")
+            apto_opts = ["Aprobado", "Pendiente", "Rechazado"]
+            nuevo_apto = st.selectbox("Apto Médico", apto_opts, index=apto_opts.index(socio_data["apto_medico"]))
+            nuevas_alergias = st.text_area("Alergias / Med. Especial", value=socio_data["alergias"])
+            
+            btn_actualizar = st.form_submit_button("Guardar Cambios")
+            
+            if btn_actualizar:
+                st.session_state.socios_db.loc[idx, "nombre"] = nuevo_nombre
+                st.session_state.socios_db.loc[idx, "dni"] = nuevo_dni
+                st.session_state.socios_db.loc[idx, "estado"] = nuevo_estado
+                st.session_state.socios_db.loc[idx, "direccion"] = nueva_direccion
+                st.session_state.socios_db.loc[idx, "categoria_futbol"] = nueva_cat
+                st.session_state.socios_db.loc[idx, "tel_madre"] = nuevo_tel_madre
+                st.session_state.socios_db.loc[idx, "tel_padre"] = nuevo_tel_padre
+                st.session_state.socios_db.loc[idx, "apto_medico"] = nuevo_apto
+                st.session_state.socios_db.loc[idx, "alergias"] = nuevas_alergias
+                
+                st.success(f"¡Ficha de {nuevo_nombre} actualizada con éxito!")
+
+# ------------------------------------------------------------------------------
+# 4. PADRÓN & LISTAS POR CATEGORÍA
 # ------------------------------------------------------------------------------
 elif opcion == "🔍 Padrón & Listas":
     st.header("Padrón General y Filtro por Categoría")
     
-    filtro_cat = st.selectbox("Filtrar por Categoría de Fútbol:", ["Todas"] + CATEGORIAS_FUTBOL)
+    col_f1, col_f2 = st.columns(2)
+    filtro_cat = col_f1.selectbox("Filtrar por Categoría de Fútbol:", ["Todas"] + CATEGORIAS_FUTBOL)
+    filtro_est = col_f2.selectbox("Estado del Socio:", ["Solo Activos", "Dado de Baja / Inactivos", "Todos"])
     
     df_ver = st.session_state.socios_db.copy()
+    
     if filtro_cat != "Todas":
         df_ver = df_ver[df_ver["categoria_futbol"] == filtro_cat]
         
+    if filtro_est == "Solo Activos":
+        df_ver = df_ver[df_ver["estado"] == "Activo"]
+    elif filtro_est == "Dado de Baja / Inactivos":
+        df_ver = df_ver[df_ver["estado"] != "Activo"]
+        
     st.subheader(f"Listado ({len(df_ver)} registros)")
     st.dataframe(
-        df_ver[["nombre", "dni", "direccion", "categoria_futbol", "tipo_registro", "grupo_familiar", "apto_medico", "tel_madre", "tel_padre"]],
+        df_ver[["nombre", "dni", "estado", "direccion", "categoria_futbol", "tipo_registro", "grupo_familiar", "apto_medico", "tel_madre", "tel_padre"]],
         use_container_width=True, hide_index=True
     )
 
 # ------------------------------------------------------------------------------
-# 4. COBRO DE CUOTAS POR NOMBRE Y GRUPO FAMILIAR
+# 5. COBRO DE CUOTAS POR NOMBRE Y GRUPO FAMILIAR
 # ------------------------------------------------------------------------------
 elif opcion == "💳 Cobrar Cuota":
     st.header("Registrar Cobro de Cuota")
     
-    lista_nombres = st.session_state.socios_db["nombre"].tolist()
-    socio_buscado = st.selectbox("Buscar por Nombre y Apellido", options=[""] + lista_nombres)
+    df_activos = st.session_state.socios_db[st.session_state.socios_db["estado"] == "Activo"]
+    lista_nombres = df_activos["nombre"].tolist()
+    socio_buscado = st.selectbox("Buscar por Nombre y Apellido (Solo Activos)", options=[""] + lista_nombres)
     
     if socio_buscado:
-        socio_data = st.session_state.socios_db[st.session_state.socios_db["nombre"] == socio_buscado].iloc[0]
+        socio_data = df_activos[df_activos["nombre"] == socio_buscado].iloc[0]
         
         is_grupo = socio_data["tipo_registro"] == "Grupo Familiar"
         
         if is_grupo:
             nom_grupo = socio_data["grupo_familiar"]
-            integrantes = st.session_state.socios_db[st.session_state.socios_db["grupo_familiar"] == nom_grupo]
+            integrantes = df_activos[df_activos["grupo_familiar"] == nom_grupo]
             st.info(f"👨‍👩‍👧‍👦 **Cobro a Grupo Familiar:** {nom_grupo}")
             st.write("**Integrantes e información del grupo:**")
             st.dataframe(integrantes[["nombre", "dni", "categoria_futbol", "apto_medico"]], hide_index=True)
@@ -318,7 +396,7 @@ elif opcion == "💳 Cobrar Cuota":
                 st.markdown(f"[📲 **Enviar Comprobante Unificado por WhatsApp**]({wa_url})")
 
 # ------------------------------------------------------------------------------
-# 5. HISTORIAL / ARCHIVO LOCAL DE COMPROBANTES
+# 6. HISTORIAL / ARCHIVO LOCAL DE COMPROBANTES
 # ------------------------------------------------------------------------------
 elif opcion == "📑 Historial de Comprobantes":
     st.header("📑 Archivo Local de Comprobantes Guardados")
