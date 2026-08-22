@@ -3,14 +3,16 @@
   "name": "Gestión de Club & Fútbol",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/53/53283.png",
+      "src": "https://img.icons8.com/color/192/soccer-ball.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any maskable"
     },
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/53/53283.png",
+      "src": "https://img.icons8.com/color/512/soccer-ball.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ],
   "start_url": "/",
