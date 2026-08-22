@@ -45,6 +45,9 @@ CATEGORIAS_FUTBOL = ["Ninguna / Adulto", "9na", "8va", "7ma", "6ta", "5ta", "Sub
 # --- BASE DE DATOS TRANSCRITA DE LAS LISTAS ---
 if "socios_db" not in st.session_state:
     st.session_state.socios_db = pd.DataFrame([
+       import pandas as pd
+
+socios_data = [
         # --- 6ta Categoría ---
         {"id": 1, "tipo_registro": "Individual", "grupo_familiar": "N/A", "nombre": "Valentin Brinso", "dni": "", "direccion": "", "categoria_futbol": "6ta", "tel_madre": "2226542073", "tel_padre": "2271432530", "apto_medico": "Aprobado", "alergias": "Ninguna", "estado": "Activo"},
         {"id": 2, "tipo_registro": "Individual", "grupo_familiar": "N/A", "nombre": "Joaquin Campos", "dni": "", "direccion": "", "categoria_futbol": "6ta", "tel_madre": "2271436860", "tel_padre": "1124055037", "apto_medico": "Aprobado", "alergias": "Ninguna", "estado": "Activo"},
@@ -212,7 +215,47 @@ if "socios_db" not in st.session_state:
         {"id": 152, "tipo_registro": "Individual", "grupo_familiar": "N/A", "nombre": "Perla", "dni": "", "direccion": "", "categoria_futbol": "Sub-21", "tel_madre": "", "tel_padre": "", "apto_medico": "Pendiente", "alergias": "Ninguna", "estado": "Activo"},
         {"id": 153, "tipo_registro": "Individual", "grupo_familiar": "N/A", "nombre": "Brisa", "dni": "", "direccion": "", "categoria_futbol": "Sub-21", "tel_madre": "", "tel_padre": "", "apto_medico": "Pendiente", "alergias": "Ninguna", "estado": "Activo"},
         {"id": 154, "tipo_registro": "Individual", "grupo_familiar": "N/A", "nombre": "Camila", "dni": "", "direccion": "", "categoria_futbol": "Sub-21", "tel_madre": "", "tel_padre": "", "apto_medico": "Pendiente", "alergias": "Ninguna", "estado": "Activo"}
-    ])
+]
+
+df = pd.DataFrame(socios_data)
+
+# Let's find matches across tel_madre and tel_padre
+# We need to construct graph/components of linked players based on shared phones
+import networkx as nx
+
+G = nx.Graph()
+
+for idx, row in df.iterrows():
+    p_id = row['id']
+    G.add_node(p_id)
+    t1 = row['tel_madre'].strip()
+    t2 = row['tel_padre'].strip()
+    
+    if t1:
+        G.add_node(f"phone_{t1}")
+        G.add_edge(p_id, f"phone_{t1}")
+    if t2:
+        G.add_node(f"phone_{t2}")
+        G.add_edge(p_id, f"phone_{t2}")
+
+components = list(nx.connected_components(G))
+
+groups = []
+group_idx = 1
+
+for comp in components:
+    players = [n for n in comp if isinstance(n, int)]
+    phones = [n.replace("phone_", "") for n in comp if isinstance(n, str)]
+    if len(players) > 1:
+        groups.append((group_idx, players, phones))
+        group_idx += 1
+
+print(f"Total grupos familiares encontrados: {len(groups)}")
+for g_id, p_ids, phs in groups:
+    names = df[df['id'].isin(p_ids)][['id', 'nombre', 'categoria_futbol', 'tel_madre', 'tel_padre']].to_dict('records')
+    print(f"\nGrupo {g_id}:")
+    for n in names:
+        print(f"  - ID {n['id']}: {n['nombre']} ({n['categoria_futbol']}) | M: {n['tel_madre']} | P: {n['tel_padre']}")
 
 if "pagos_db" not in st.session_state:
     st.session_state.pagos_db = []
