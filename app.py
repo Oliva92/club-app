@@ -88,7 +88,7 @@ def generar_pdf_comprobante(pago):
     story = []
     
     # Encabezado
-    story.append(Paragraph("CLUB ATLETICO VALENTIN", title_style))
+    story.append(Paragraph("CLUB DEPORTIVO VAL", title_style))
     story.append(Paragraph("COMPROBANTE OFICIAL DE PAGO DE CUOTA", subtitle_style))
     story.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor('#E65100'), spaceAfter=15))
     
