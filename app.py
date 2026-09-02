@@ -5,9 +5,11 @@ import urllib.parse
 from datetime import datetime
 from conexion import supabase
 import io
+import uuid
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-import streamlit as st
+
+# --- FUNCIONES DE PDF Y SUPABASE STORAGE ---
 
 def generar_pdf_comprobante(datos_cobro):
     """
@@ -28,7 +30,7 @@ def generar_pdf_comprobante(datos_cobro):
     p.drawString(100, 650, f"Período: {datos_cobro.get('mes')}/{datos_cobro.get('anio')}")
     p.drawString(100, 630, f"Medio de Pago: {datos_cobro.get('medio')}")
     p.setFont("Helvetica-Bold", 14)
-    p.drawString(100, 600, f"Monto Total: ${datos_cobro.get('monto')}")
+    p.drawString(100, 600, f"Monto Total: ${datos_cobro.get('monto'):,.2f}")
     
     p.setFont("Helvetica-Oblique", 10)
     p.drawString(100, 560, f"Atendido por: {datos_cobro.get('usuario_cobro')}")
@@ -41,27 +43,24 @@ def generar_pdf_comprobante(datos_cobro):
 
 def subir_pdf_supabase(bytes_pdf, nombre_archivo):
     path_en_bucket = f"recibos/{nombre_archivo}"
-    
-    # Se agrega 'upsert': 'true' para reescribir si el archivo ya existe
-    res = supabase.storage.from_("comprobantes").upload(
-        path=path_en_bucket,
-        file=bytes_pdf,
-        file_options={
-            "content-type": "application/pdf",
-            "upsert": "true"
-        }
-    )
-    
-    url_publica = supabase.storage.from_("comprobantes").get_public_url(path_en_bucket)
-    return url_publica
-    # 1. Armar el diccionario con los datos del cobro
+    try:
+        supabase.storage.from_("comprobantes").upload(
+            path=path_en_bucket,
+            file=bytes_pdf,
+            file_options={
+                "content-type": "application/pdf",
+                "upsert": "true"
+            }
+        )
+        url_publica = supabase.storage.from_("comprobantes").get_public_url(path_en_bucket)
+        return url_publica
+    except Exception as e:
+        st.error(f"Error al subir PDF a Supabase Storage: {e}")
+        return None
 
-
-
-# Configuración Responsive (Celular / PC)
+# --- CONFIGURACIÓN Y ESTILOS DE STREAMLIT ---
 st.set_page_config(page_title="Gestión de Club & Fútbol", page_icon="⚽", layout="wide")
 
-# --- ESCUDO DE FONDO (MARCA DE AGUA) ---
 ESCUDO_SVG = """
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
   <path d="M 250 40 L 420 80 C 420 280 350 380 250 460 C 150 380 80 280 80 80 Z" fill="#E65100" stroke="#FFFFFF" stroke-width="12"/>
@@ -93,8 +92,9 @@ MES_ACTUAL = MESES[datetime.now().month - 1]
 ANIO_ACTUAL = datetime.now().year
 
 CATEGORIAS_FUTBOL = ["Ninguna / Adulto", "9na", "8va", "7ma", "6ta", "5ta", "Sub-12", "Sub-14", "Sub-21"]
-
-# --- FUNCIONES DE INTERACCIÓN CON SUPABASE ---
+# Configuración Responsive (Celular / PC)
+st.set_page_config(page_title="Gestión de Club & Fútbol", page_icon="⚽", layout="wide")
+# --- FUNCIONES DE INTERACCIÓN CON SUPABASE TABLE ---
 
 def obtener_todos_los_socios():
     res = supabase.table("socios").select("*").execute()
@@ -103,12 +103,10 @@ def obtener_todos_los_socios():
 def guardar_socio(datos):
     datos_para_insertar = datos.copy()
     datos_para_insertar.pop("id", None)
-    
     try:
         res = supabase.table("socios").insert(datos_para_insertar).execute()
         return res
     except Exception as e:
-        # Esto imprimirá el error real de Postgres en la pantalla de Streamlit
         st.error(f"Error al guardar socio '{datos_para_insertar.get('nombre')}': {e}")
         raise e
 
@@ -122,8 +120,49 @@ def registrar_cobro(datos_cobro):
 
 def obtener_todos_los_cobros():
     res = supabase.table("cobranzas").select("*").order("fecha", desc=True).execute()
-    return res.data
+    return res.data if res.data else []
 
+# --- CÁRGA E INICIALIZACIÓN ---
+st.session_state.socios_db = obtener_todos_los_socios()
+
+def _telefonos_familiares(registro):
+    return {
+        str(registro[campo]).strip()
+        for campo in ("tel_madre", "tel_padre")
+        if campo in registro and str(registro[campo]).strip()
+    }
+
+def _detectar_grupos_familiares(df):
+    grupos_por_telefono = {}
+    for idx, registro in df.iterrows():
+        for telefono in _telefonos_familiares(registro):
+            grupos_por_telefono.setdefault(telefono, set()).add(idx)
+
+    pendientes = [indices for indices in grupos_por_telefono.values() if len(indices) > 1]
+    componentes = []
+    while pendientes:
+        componente = set(pendientes.pop())
+        cambio = True
+        while cambio:
+            cambio = False
+            for grupo in pendientes[:]:
+                if componente & grupo:
+                    componente |= grupo
+                    pendientes.remove(grupo)
+                    cambio = True
+        componentes.append(componente)
+    return componentes
+
+if "familias_detectadas" not in st.session_state and not st.session_state.socios_db.empty:
+    st.session_state.familias_detectadas = _detectar_grupos_familiares(st.session_state.socios_db)
+    for numero, integrantes in enumerate(st.session_state.familias_detectadas, start=1):
+        nombre_grupo = f"Familia detectada {numero}"
+        for idx in integrantes:
+            socio_id = int(st.session_state.socios_db.loc[idx, "id"])
+            datos_upd = {"tipo_registro": "Grupo Familiar", "grupo_familiar": nombre_grupo}
+            actualizar_socio(socio_id, datos_upd)
+    st.session_state.socios_db = obtener_todos_los_socios()
+    
 # --- MIGRACIÓN INICIAL A SUPABASE ---
 SOCIOS_INICIALES = [
     # 6ta Categoría
@@ -336,7 +375,7 @@ if "familias_detectadas" not in st.session_state and not st.session_state.socios
             actualizar_socio(socio_id, datos_upd)
     st.session_state.socios_db = obtener_todos_los_socios()
 
-# --- CONTROL DE ACCESO Y USUARIOS ---
+# --- CONTROL DE ACCESO ---
 USERS = {
     "admin": hashlib.sha256("Club2026#".encode()).hexdigest(),
     "cobranzas": hashlib.sha256("Cobro2026!".encode()).hexdigest()
@@ -358,6 +397,22 @@ if not st.session_state.auth:
         else:
             st.error("Credenciales incorrectas")
     st.stop()
+
+# --- MENÚ LATERAL ---
+st.sidebar.title(f"👤 Usuario: {st.session_state.current_user}")
+opcion = st.sidebar.radio("Ir a:", [
+    "📊 Inicio & Categorías", 
+    "➕ Registrar Socio / Grupo",
+    "✏️ Editar / Dar de Baja Socio",
+    "🔍 Padrón & Listas", 
+    "💳 Cobrar Cuota",
+    "📑 Historial de Comprobantes"
+])
+
+if st.sidebar.button("Cerrar Sesión"):
+    st.session_state.auth = False
+    st.session_state.current_user = ""
+    st.rerun()
 
 # --- MENÚ LATERAL ---
 st.sidebar.title(f"👤 Usuario: {st.session_state.current_user}")
@@ -597,7 +652,7 @@ elif opcion == "🔍 Padrón & Listas":
         )
 
 # ------------------------------------------------------------------------------
-# 5. COBRO DE CUOTAS POR NOMBRE Y GRUPO FAMILIAR
+# 5. COBRO DE CUOTAS
 # ------------------------------------------------------------------------------
 elif opcion == "💳 Cobrar Cuota":
     st.header("Registrar Cobro de Cuota")
@@ -608,17 +663,14 @@ elif opcion == "💳 Cobrar Cuota":
     
     if socio_buscado:
         socio_data = df_activos[df_activos["nombre"] == socio_buscado].iloc[0]
-        
         is_grupo = socio_data["tipo_registro"] == "Grupo Familiar"
         
         if is_grupo:
             nom_grupo = socio_data["grupo_familiar"]
             integrantes = df_activos[df_activos["grupo_familiar"] == nom_grupo]
             st.info(f"👨‍👩‍👧‍👦 **Cobro a Grupo Familiar:** {nom_grupo}")
-            st.write("**Integrantes e información del grupo:**")
             st.dataframe(integrantes[["nombre", "dni", "categoria_futbol", "apto_medico"]], hide_index=True)
             ids_a_cobrar = [int(i) for i in integrantes["id"].tolist()]
-            
             nombres_comprobante = ", ".join([f"{r['nombre']} ({r['categoria_futbol']})" for _, r in integrantes.iterrows()])
             monto_defecto = 12000.0
         else:
@@ -649,8 +701,7 @@ elif opcion == "💳 Cobrar Cuota":
             tel_envio = st.text_input("Ingresar otro teléfono con código de área (ej: 5491112345678)")
         
         if st.button("Confirmar Pago y Guardar Comprobante"):
-            cobros_existentes = obtener_todos_los_cobros()
-            receipt_id = f"REC-{len(cobros_existentes) + 1001}"
+            receipt_id = f"REC-{uuid.uuid4().hex[:6].upper()}"
             fecha_ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
             if is_grupo:
@@ -672,62 +723,34 @@ elif opcion == "💳 Cobrar Cuota":
                 "telefono": tel_envio,
                 "mensaje_wa": msg_txt
             }
-            registrar_cobro(nuevo_pago)
-            st.success(f"¡Comprobante #{receipt_id} guardado con éxito en Supabase!")
+
+            # Generar PDF y subirlo a Storage
+            pdf_bytes = generar_pdf_comprobante(nuevo_pago)
+            nombre_archivo_pdf = f"recibo_{receipt_id}.pdf"
+            url_pdf = subir_pdf_supabase(pdf_bytes, nombre_archivo_pdf)
             
+            if url_pdf:
+                nuevo_pago["url_pdf"] = url_pdf
+            
+            registrar_cobro(nuevo_pago)
+            st.success(f"¡Comprobante #{receipt_id} guardado correctamente en Supabase!")
+            
+            st.download_button("📄 Descargar Recibo PDF", data=pdf_bytes, file_name=nombre_archivo_pdf, mime="application/pdf")
+
             if tel_envio:
                 wa_url = f"https://wa.me/{tel_envio}?text={urllib.parse.quote(msg_txt)}"
                 st.markdown(f"[📲 **Enviar Comprobante Unificado por WhatsApp**]({wa_url})")
-                # 1. Asegurar que solo se muestre si el usuario está autenticado
-if st.session_state.get("autenticado", False):
-
-    # 2. Formulario de Cobranza
-    with st.form("form_registro_cobro"):
-        st.subheader("Registrar Cobro")
-        
-        pagador = st.text_input("Pagador")
-        monto = st.number_input("Monto", min_value=0.0)
-        
-        # El botón de envío
-        submit_button = st.form_submit_button("Guardar Cobro")
-
-    # 3. La lógica de guardado Y los mensajes SOLO se ejecutan si se presionó el botón
-    if submit_button:
-        nuevo_cobro = {
-            "receipt_id": f"REC-{uuid.uuid4().hex[:6].upper()}",
-            "pagador": pagador,
-            "monto": monto,
-            # ... resto de tus campos ...
-        }
-        
-        # Generar y subir PDF
-        pdf_bytes = generar_pdf_comprobante(nuevo_cobro)
-        nombre_archivo = f"recibo_{nuevo_cobro['receipt_id']}.pdf"
-        url_pdf = subir_pdf_supabase(pdf_bytes, nombre_archivo)
-        
-        nuevo_cobro["url_pdf"] = url_pdf
-        supabase.table("cobranzas").insert(nuevo_cobro).execute()
-        
-        # El cartel informativo ahora solo saldrá UNA VEZ al hacer clic
-        st.success("¡Cobro registrado y PDF guardado correctamente!")
-        st.download_button("📄 Descargar PDF", data=pdf_bytes, file_name=nombre_archivo, mime="application/pdf")
-
-else:
-    # Pantalla de Login si no está autenticado
-    st.title("Iniciar Sesión")
-    # ... formulario de login ...
-
 # ------------------------------------------------------------------------------
-# 6. HISTORIAL / COMPROBANTES EN SUPABASE
+# 6. HISTORIAL DE COMPROBANTES
 # ------------------------------------------------------------------------------
-    elif opcion == "📑 Historial de Comprobantes":
+elif opcion == "📑 Historial de Comprobantes":
     st.header("📑 Archivo de Comprobantes en la Nube")
     
     cobros_list = obtener_todos_los_cobros()
     
-        if len(cobros_list) == 0:
-         st.warning("No hay comprobantes cargados en el sistema aún.")
-        else:
+    if len(cobros_list) == 0:
+        st.warning("No hay comprobantes cargados en el sistema aún.")
+    else:
         df_pagos = pd.DataFrame(cobros_list)
         
         st.subheader("Búsqueda y Registros Guardados")
@@ -749,10 +772,12 @@ else:
         > **Detalle Chicos/Socios:** {pago_info['detalle']}  
         > **Período:** {pago_info['mes']} {pago_info['anio']}  
         > **Monto:** ${pago_info['monto']:,.2f} ({pago_info['medio']})  
-        > **Teléfono Notificado:** {pago_info['telefono']}  
+        > **Teléfono Notificado:** {pago_info.get('telefono', 'N/A')}  
         """)
         
-        if pago_info['telefono']:
+        if pago_info.get('url_pdf'):
+            st.markdown(f"[📄 **Ver / Descargar PDF del Recibo en Supabase**]({pago_info['url_pdf']})")
+
+        if pago_info.get('telefono'):
             wa_url_reprint = f"https://wa.me/{pago_info['telefono']}?text={urllib.parse.quote(pago_info['mensaje_wa'])}"
             st.markdown(f"[📲 **Reenviar Comprobante por WhatsApp**]({wa_url_reprint})")
-          
