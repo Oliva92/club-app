@@ -55,37 +55,7 @@ def subir_pdf_supabase(bytes_pdf, nombre_archivo):
     url_publica = supabase.storage.from_("comprobantes").get_public_url(path_en_bucket)
     return url_publica
     # 1. Armar el diccionario con los datos del cobro
-nuevo_cobro = {
-    "receipt_id": "REC-001",
-    "pagador": "Juan Pérez",
-    "detalle": "Cuota Social - Categoría Fútbol",
-    "mes": "Septiembre",
-    "anio": 2026,
-    "monto": 15000,
-    "medio": "Transferencia",
-    "fecha": "2026-09-02",
-    "usuario_cobro": "cobranzas"
-}
 
-# 2. Generar el archivo PDF en memoria
-pdf_bytes = generar_pdf_comprobante(nuevo_cobro)
-
-# 3. Subir el PDF a Supabase Storage
-nombre_archivo = f"recibo_{nuevo_cobro['receipt_id']}.pdf"
-url_pdf = subir_pdf_supabase(pdf_bytes, nombre_archivo)
-
-# 4. Guardar el registro en la tabla 'cobranzas' adjuntando la URL
-nuevo_cobro["url_pdf"] = url_pdf
-supabase.table("cobranzas").insert(nuevo_cobro).execute()
-
-# 5. Ofrecer el botón de descarga inmediata al usuario en Streamlit
-st.success("¡Cobro registrado y PDF guardado correctamente!")
-st.download_button(
-    label="📄 Descargar Comprobante PDF",
-    data=pdf_bytes,
-    file_name=nombre_archivo,
-    mime="application/pdf"
-)
 
 
 # Configuración Responsive (Celular / PC)
@@ -708,6 +678,44 @@ elif opcion == "💳 Cobrar Cuota":
             if tel_envio:
                 wa_url = f"https://wa.me/{tel_envio}?text={urllib.parse.quote(msg_txt)}"
                 st.markdown(f"[📲 **Enviar Comprobante Unificado por WhatsApp**]({wa_url})")
+                # 1. Asegurar que solo se muestre si el usuario está autenticado
+if st.session_state.get("autenticado", False):
+
+    # 2. Formulario de Cobranza
+    with st.form("form_registro_cobro"):
+        st.subheader("Registrar Cobro")
+        
+        pagador = st.text_input("Pagador")
+        monto = st.number_input("Monto", min_value=0.0)
+        
+        # El botón de envío
+        submit_button = st.form_submit_button("Guardar Cobro")
+
+    # 3. La lógica de guardado Y los mensajes SOLO se ejecutan si se presionó el botón
+    if submit_button:
+        nuevo_cobro = {
+            "receipt_id": f"REC-{uuid.uuid4().hex[:6].upper()}",
+            "pagador": pagador,
+            "monto": monto,
+            # ... resto de tus campos ...
+        }
+        
+        # Generar y subir PDF
+        pdf_bytes = generar_pdf_comprobante(nuevo_cobro)
+        nombre_archivo = f"recibo_{nuevo_cobro['receipt_id']}.pdf"
+        url_pdf = subir_pdf_supabase(pdf_bytes, nombre_archivo)
+        
+        nuevo_cobro["url_pdf"] = url_pdf
+        supabase.table("cobranzas").insert(nuevo_cobro).execute()
+        
+        # El cartel informativo ahora solo saldrá UNA VEZ al hacer clic
+        st.success("¡Cobro registrado y PDF guardado correctamente!")
+        st.download_button("📄 Descargar PDF", data=pdf_bytes, file_name=nombre_archivo, mime="application/pdf")
+
+else:
+    # Pantalla de Login si no está autenticado
+    st.title("Iniciar Sesión")
+    # ... formulario de login ...
 
 # ------------------------------------------------------------------------------
 # 6. HISTORIAL / COMPROBANTES EN SUPABASE
