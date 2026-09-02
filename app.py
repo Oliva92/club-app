@@ -40,19 +40,18 @@ def generar_pdf_comprobante(datos_cobro):
     return buffer.getvalue()
 
 def subir_pdf_supabase(bytes_pdf, nombre_archivo):
-    """
-    Suba el PDF generado al bucket 'comprobantes' en Supabase Storage.
-    """
     path_en_bucket = f"recibos/{nombre_archivo}"
     
-    # Subir archivo a Supabase Storage
+    # Se agrega 'upsert': 'true' para reescribir si el archivo ya existe
     res = supabase.storage.from_("comprobantes").upload(
         path=path_en_bucket,
         file=bytes_pdf,
-        file_options={"content-type": "application/pdf"}
+        file_options={
+            "content-type": "application/pdf",
+            "upsert": "true"
+        }
     )
     
-    # Obtener la URL pública del archivo subido
     url_publica = supabase.storage.from_("comprobantes").get_public_url(path_en_bucket)
     return url_publica
     # 1. Armar el diccionario con los datos del cobro
