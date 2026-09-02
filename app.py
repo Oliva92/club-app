@@ -720,7 +720,7 @@ else:
 # ------------------------------------------------------------------------------
 # 6. HISTORIAL / COMPROBANTES EN SUPABASE
 # ------------------------------------------------------------------------------
-elif opcion == "📑 Historial de Comprobantes":
+else opcion == "📑 Historial de Comprobantes":
     st.header("📑 Archivo de Comprobantes en la Nube")
     
     cobros_list = obtener_todos_los_cobros()
