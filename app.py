@@ -720,14 +720,14 @@ else:
 # ------------------------------------------------------------------------------
 # 6. HISTORIAL / COMPROBANTES EN SUPABASE
 # ------------------------------------------------------------------------------
-    if opcion == "📑 Historial de Comprobantes":
+    elif opcion == "📑 Historial de Comprobantes":
     st.header("📑 Archivo de Comprobantes en la Nube")
     
     cobros_list = obtener_todos_los_cobros()
     
-    if len(cobros_list) == 0:
-        st.warning("No hay comprobantes cargados en el sistema aún.")
-    else:
+        if len(cobros_list) == 0:
+         st.warning("No hay comprobantes cargados en el sistema aún.")
+        else:
         df_pagos = pd.DataFrame(cobros_list)
         
         st.subheader("Búsqueda y Registros Guardados")
