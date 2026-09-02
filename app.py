@@ -48,8 +48,14 @@ def obtener_todos_los_socios():
     return pd.DataFrame(res.data) if res.data else pd.DataFrame()
 
 def guardar_socio(datos):
-    res = supabase.table("socios").insert(datos).execute()
-    return res.data
+    # Crear una copia limpia para no modificar el objeto original
+    datos_para_insertar = datos.copy()
+
+    # Eliminar 'id' si existe para que Postgres genere uno automáticamente
+    datos_para_insertar.pop("id", None)
+
+    res = supabase.table("socios").insert(datos_para_insertar).execute()
+    return res
 
 def actualizar_socio(socio_id, datos):
     res = supabase.table("socios").update(datos).eq("id", socio_id).execute()
