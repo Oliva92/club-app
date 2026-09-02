@@ -1,15 +1,16 @@
 import os
-from dotenv import load_dotenv
+import streamlit as st
 from supabase import create_client, Client
+from dotenv import load_dotenv
 
-# Cargar las variables desde el archivo .env
+# Carga variables de un archivo .env si existe (entorno local)
 load_dotenv()
 
-URL = os.getenv("SUPABASE_URL")
-KEY = os.getenv("SUPABASE_KEY")
+# Prioriza st.secrets (Streamlit Cloud) y si no, usa os.getenv (Local)
+url = st.secrets.get("SUPABASE_URL") or os.getenv("SUPABASE_URL")
+key = st.secrets.get("SUPABASE_KEY") or os.getenv("SUPABASE_KEY")
 
-if not URL or not KEY:
-    raise ValueError("Faltan las credenciales de Supabase en el archivo .env")
+if not url or not key:
+    raise ValueError("Faltan las credenciales de Supabase en Secrets o .env")
 
-# Cliente global de la base de datos
-supabase: Client = create_client(URL, KEY)
+supabase: Client = create_client(url, key)
