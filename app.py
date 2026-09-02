@@ -712,7 +712,7 @@ if st.session_state.get("autenticado", False):
         st.success("¡Cobro registrado y PDF guardado correctamente!")
         st.download_button("📄 Descargar PDF", data=pdf_bytes, file_name=nombre_archivo, mime="application/pdf")
 
-elif:
+else:
     # Pantalla de Login si no está autenticado
     st.title("Iniciar Sesión")
     # ... formulario de login ...
@@ -720,7 +720,7 @@ elif:
 # ------------------------------------------------------------------------------
 # 6. HISTORIAL / COMPROBANTES EN SUPABASE
 # ------------------------------------------------------------------------------
-elif opcion == "📑 Historial de Comprobantes":
+    elif opcion == "📑 Historial de Comprobantes":
     st.header("📑 Archivo de Comprobantes en la Nube")
     
     cobros_list = obtener_todos_los_cobros()
