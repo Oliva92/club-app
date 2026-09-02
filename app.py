@@ -414,22 +414,6 @@ if st.sidebar.button("Cerrar Sesión"):
     st.session_state.current_user = ""
     st.rerun()
 
-# --- MENÚ LATERAL ---
-st.sidebar.title(f"👤 Usuario: {st.session_state.current_user}")
-opcion = st.sidebar.radio("Ir a:", [
-    "📊 Inicio & Categorías", 
-    "➕ Registrar Socio / Grupo",
-    "✏️ Editar / Dar de Baja Socio",
-    "🔍 Padrón & Listas", 
-    "💳 Cobrar Cuota",
-    "📑 Historial de Comprobantes"
-])
-
-if st.sidebar.button("Cerrar Sesión"):
-    st.session_state.auth = False
-    st.session_state.current_user = ""
-    st.rerun()
-
 # ------------------------------------------------------------------------------
 # 2. ALTA DE JUGADOR INDIVIDUAL O GRUPO FAMILIAR
 # ------------------------------------------------------------------------------
