@@ -4,6 +4,58 @@ import hashlib
 import urllib.parse
 from datetime import datetime
 from conexion import supabase
+import io
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+import streamlit as st
+
+def generar_pdf_comprobante(datos_cobro):
+    """
+    Genera un recibo en PDF en memoria (BytesIO) usando ReportLab.
+    """
+    buffer = io.BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    
+    # Encabezado
+    p.setFont("Helvetica-Bold", 16)
+    p.drawString(100, 750, f"COMPROBANTE DE PAGO - RECIBO #{datos_cobro.get('receipt_id')}")
+    
+    # Detalle del Cobro
+    p.setFont("Helvetica", 12)
+    p.drawString(100, 710, f"Fecha: {datos_cobro.get('fecha')}")
+    p.drawString(100, 690, f"Pagador / Socio: {datos_cobro.get('pagador')}")
+    p.drawString(100, 670, f"Detalle: {datos_cobro.get('detalle')}")
+    p.drawString(100, 650, f"Período: {datos_cobro.get('mes')}/{datos_cobro.get('anio')}")
+    p.drawString(100, 630, f"Medio de Pago: {datos_cobro.get('medio')}")
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(100, 600, f"Monto Total: ${datos_cobro.get('monto')}")
+    
+    p.setFont("Helvetica-Oblique", 10)
+    p.drawString(100, 560, f"Atendido por: {datos_cobro.get('usuario_cobro')}")
+    
+    p.showPage()
+    p.save()
+    
+    buffer.seek(0)
+    return buffer.getvalue()
+
+def subir_pdf_supabase(bytes_pdf, nombre_archivo):
+    """
+    Suba el PDF generado al bucket 'comprobantes' en Supabase Storage.
+    """
+    path_en_bucket = f"recibos/{nombre_archivo}"
+    
+    # Subir archivo a Supabase Storage
+    res = supabase.storage.from_("comprobantes").upload(
+        path=path_en_bucket,
+        file=bytes_pdf,
+        file_options={"content-type": "application/pdf"}
+    )
+    
+    # Obtener la URL pública del archivo subido
+    url_publica = supabase.storage.from_("comprobantes").get_public_url(path_en_bucket)
+    return url_publica
+
 
 # Configuración Responsive (Celular / PC)
 st.set_page_config(page_title="Gestión de Club & Fútbol", page_icon="⚽", layout="wide")
@@ -664,54 +716,4 @@ elif opcion == "📑 Historial de Comprobantes":
         if pago_info['telefono']:
             wa_url_reprint = f"https://wa.me/{pago_info['telefono']}?text={urllib.parse.quote(pago_info['mensaje_wa'])}"
             st.markdown(f"[📲 **Reenviar Comprobante por WhatsApp**]({wa_url_reprint})")
-          import io
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-import streamlit as st
-
-def generar_pdf_comprobante(datos_cobro):
-    """
-    Genera un recibo en PDF en memoria (BytesIO) usando ReportLab.
-    """
-    buffer = io.BytesIO()
-    p = canvas.Canvas(buffer, pagesize=letter)
-    
-    # Encabezado
-    p.setFont("Helvetica-Bold", 16)
-    p.drawString(100, 750, f"COMPROBANTE DE PAGO - RECIBO #{datos_cobro.get('receipt_id')}")
-    
-    # Detalle del Cobro
-    p.setFont("Helvetica", 12)
-    p.drawString(100, 710, f"Fecha: {datos_cobro.get('fecha')}")
-    p.drawString(100, 690, f"Pagador / Socio: {datos_cobro.get('pagador')}")
-    p.drawString(100, 670, f"Detalle: {datos_cobro.get('detalle')}")
-    p.drawString(100, 650, f"Período: {datos_cobro.get('mes')}/{datos_cobro.get('anio')}")
-    p.drawString(100, 630, f"Medio de Pago: {datos_cobro.get('medio')}")
-    p.setFont("Helvetica-Bold", 14)
-    p.drawString(100, 600, f"Monto Total: ${datos_cobro.get('monto')}")
-    
-    p.setFont("Helvetica-Oblique", 10)
-    p.drawString(100, 560, f"Atendido por: {datos_cobro.get('usuario_cobro')}")
-    
-    p.showPage()
-    p.save()
-    
-    buffer.seek(0)
-    return buffer.getvalue()
-
-def subir_pdf_supabase(bytes_pdf, nombre_archivo):
-    """
-    Suba el PDF generado al bucket 'comprobantes' en Supabase Storage.
-    """
-    path_en_bucket = f"recibos/{nombre_archivo}"
-    
-    # Subir archivo a Supabase Storage
-    res = supabase.storage.from_("comprobantes").upload(
-        path=path_en_bucket,
-        file=bytes_pdf,
-        file_options={"content-type": "application/pdf"}
-    )
-    
-    # Obtener la URL pública del archivo subido
-    url_publica = supabase.storage.from_("comprobantes").get_public_url(path_en_bucket)
-    return url_publica
+          
