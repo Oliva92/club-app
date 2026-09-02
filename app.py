@@ -414,23 +414,30 @@ if st.sidebar.button("Cerrar Sesión"):
     st.session_state.current_user = ""
     st.rerun()
 # ------------------------------------------------------------------------------
-# 1. DASHBOARD & CONTROL POR CATEGORÍA
+# 1. DASHBOARD
 # ------------------------------------------------------------------------------
 if opcion == "📊 Inicio & Categorías":
     st.header(f"📊 Control General y Cuotas ({MES_ACTUAL} {ANIO_ACTUAL})")
     
-    df_activos = st.session_state.socios_db[st.session_state.socios_db["estado"] == "Activo"].copy()
+    df_activos = st.session_state.socios_db[st.session_state.socios_db["estado"] == "Activo"].copy() if not st.session_state.socios_db.empty else pd.DataFrame()
     
-   # Reemplazar por esta lógica que consulta la BD de Supabase:
-cobros_todos = obtener_todos_los_cobros()
-pagos_mes = [p for p in cobros_todos if p.get("mes") == MES_ACTUAL and p.get("anio") == ANIO_ACTUAL]     
-    df_activos["Estado Cuota"] = df_activos["id"].apply(
-        lambda x: f"✅ Al día ({MES_ACTUAL})" if x in ids_pagados else f"❌ Adeuda ({MES_ACTUAL})"
-    )
+    # Consulta a la base de datos de Supabase
+    cobros_todos = obtener_todos_los_cobros()
+    pagos_mes = [p for p in cobros_todos if p.get("mes") == MES_ACTUAL and p.get("anio") == ANIO_ACTUAL]
     
-    total_recaudado = sum([p["monto"] for p in pagos_mes])
+    ids_pagados = []
+    for pago in pagos_mes:
+        if pago.get("ids_asociados"):
+            ids_pagados.extend(pago["ids_asociados"])
+        
+    if not df_activos.empty:
+        df_activos["Estado Cuota"] = df_activos["id"].apply(
+            lambda x: f"✅ Al día ({MES_ACTUAL})" if x in ids_pagados else f"❌ Adeuda ({MES_ACTUAL})"
+        )
+    
+    total_recaudado = sum([p.get("monto", 0) for p in pagos_mes])
     pagados_cnt = len(set(ids_pagados))
-    adeudados_cnt = len(df_activos) - pagados_cnt
+    adeudados_cnt = len(df_activos) - pagados_cnt if not df_activos.empty else 0
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Recaudación Mes Actual", f"$ {total_recaudado:,}")
@@ -440,10 +447,10 @@ pagos_mes = [p for p in cobros_todos if p.get("mes") == MES_ACTUAL and p.get("an
     st.markdown("---")
     st.subheader("⚽ Cantidad de Chicos Activos por Categoría")
     
-    cat_counts = df_activos["categoria_futbol"].value_counts().reset_index()
-    cat_counts.columns = ["Categoría", "Cantidad de Chicos"]
-    st.dataframe(cat_counts, use_container_width=True, hide_index=True)
-
+    if not df_activos.empty:
+        cat_counts = df_activos["categoria_futbol"].value_counts().reset_index()
+        cat_counts.columns = ["Categoría", "Cantidad de Chicos"]
+        st.dataframe(cat_counts, use_container_width=True, hide_index=True)
 # ------------------------------------------------------------------------------
 # 2. ALTA DE JUGADOR INDIVIDUAL O GRUPO FAMILIAR
 # ------------------------------------------------------------------------------
