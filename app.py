@@ -421,11 +421,9 @@ if opcion == "📊 Inicio & Categorías":
     
     df_activos = st.session_state.socios_db[st.session_state.socios_db["estado"] == "Activo"].copy()
     
-    pagos_mes = [p for p in st.session_state.pagos_db if p["mes"] == MES_ACTUAL and p["anio"] == ANIO_ACTUAL]
-    ids_pagados = []
-    for pago in pagos_mes:
-        ids_pagados.extend(pago["ids_asociados"])
-        
+   # Reemplazar por esta lógica que consulta la BD de Supabase:
+cobros_todos = obtener_todos_los_cobros()
+pagos_mes = [p for p in cobros_todos if p.get("mes") == MES_ACTUAL and p.get("anio") == ANIO_ACTUAL]     
     df_activos["Estado Cuota"] = df_activos["id"].apply(
         lambda x: f"✅ Al día ({MES_ACTUAL})" if x in ids_pagados else f"❌ Adeuda ({MES_ACTUAL})"
     )
