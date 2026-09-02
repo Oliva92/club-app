@@ -49,14 +49,15 @@ def obtener_todos_los_socios():
 
 def guardar_socio(datos):
     datos_para_insertar = datos.copy()
-    # Elimina el 'id' para que la base de datos asigne el siguiente número disponible
     datos_para_insertar.pop("id", None)
     
-    res = supabase.table("socios").insert(datos_para_insertar).execute()
-    return res
-
-    res = supabase.table("socios").insert(datos_para_insertar).execute()
-    return res
+    try:
+        res = supabase.table("socios").insert(datos_para_insertar).execute()
+        return res
+    except Exception as e:
+        # Esto imprimirá el error real de Postgres en la pantalla de Streamlit
+        st.error(f"Error al guardar socio '{datos_para_insertar.get('nombre')}': {e}")
+        raise e
 
 def actualizar_socio(socio_id, datos):
     res = supabase.table("socios").update(datos).eq("id", socio_id).execute()
