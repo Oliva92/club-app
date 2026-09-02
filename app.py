@@ -712,7 +712,7 @@ if st.session_state.get("autenticado", False):
         st.success("¡Cobro registrado y PDF guardado correctamente!")
         st.download_button("📄 Descargar PDF", data=pdf_bytes, file_name=nombre_archivo, mime="application/pdf")
 
-else:
+elif:
     # Pantalla de Login si no está autenticado
     st.title("Iniciar Sesión")
     # ... formulario de login ...
