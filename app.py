@@ -55,6 +55,38 @@ def subir_pdf_supabase(bytes_pdf, nombre_archivo):
     # Obtener la URL pública del archivo subido
     url_publica = supabase.storage.from_("comprobantes").get_public_url(path_en_bucket)
     return url_publica
+    # 1. Armar el diccionario con los datos del cobro
+nuevo_cobro = {
+    "receipt_id": "REC-001",
+    "pagador": "Juan Pérez",
+    "detalle": "Cuota Social - Categoría Fútbol",
+    "mes": "Septiembre",
+    "anio": 2026,
+    "monto": 15000,
+    "medio": "Transferencia",
+    "fecha": "2026-09-02",
+    "usuario_cobro": "cobranzas"
+}
+
+# 2. Generar el archivo PDF en memoria
+pdf_bytes = generar_pdf_comprobante(nuevo_cobro)
+
+# 3. Subir el PDF a Supabase Storage
+nombre_archivo = f"recibo_{nuevo_cobro['receipt_id']}.pdf"
+url_pdf = subir_pdf_supabase(pdf_bytes, nombre_archivo)
+
+# 4. Guardar el registro en la tabla 'cobranzas' adjuntando la URL
+nuevo_cobro["url_pdf"] = url_pdf
+supabase.table("cobranzas").insert(nuevo_cobro).execute()
+
+# 5. Ofrecer el botón de descarga inmediata al usuario en Streamlit
+st.success("¡Cobro registrado y PDF guardado correctamente!")
+st.download_button(
+    label="📄 Descargar Comprobante PDF",
+    data=pdf_bytes,
+    file_name=nombre_archivo,
+    mime="application/pdf"
+)
 
 
 # Configuración Responsive (Celular / PC)
